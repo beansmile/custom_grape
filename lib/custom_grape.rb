@@ -1,6 +1,8 @@
-require "custom_grape/version"
+require "grape"
+require "grape-entity"
 
-module CustomGrape
-  class Error < StandardError; end
-  # Your code goes here...
-end
+require "custom_grape/version"
+require "custom_grape/resource_helper"
+require "custom_grape/action"
+require "custom_grape/entity"
+require "custom_grape/entities"
