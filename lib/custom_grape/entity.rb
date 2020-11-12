@@ -1,7 +1,7 @@
 module CustomGrape
   class Entity < Grape::Entity
-    def self.expose_attached(attribute)
-      expose attribute, using: CustomGrape::Entities::ActiveStorageAttached do |resource|
+    def self.expose_attached(attribute, options = {})
+      expose attribute, { using: CustomGrape::Entities::ActiveStorageAttached }.reverse_merge(options) do |resource|
         attached = resource.send(attribute)
 
         if attached.is_a?(ActiveStorage::Attached::One)
