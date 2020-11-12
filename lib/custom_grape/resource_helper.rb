@@ -173,7 +173,10 @@ module CustomGrape
           false
         elsif value[:type].match(/\[/)
           true
-        elsif value[:type] == "JSON" && !description_params.any? { |k, _| k.match?(/^#{key}\[/) }
+          # key可能包含特殊字符，例如方括号："shipping_categories[shipping_methods][calculator]"，此时需用Regexp.escape方法
+        elsif value[:type] == "JSON" && !description_params.any? { |k, _| k.match?(/^#{Regexp.escape(key)}\[/) }
+          true
+        elsif value[:type] == "File"
           true
         else
           false
@@ -191,7 +194,7 @@ module CustomGrape
       key = key_array.shift.to_sym
 
       if key_array == []
-        data[data.index(key)] = if value[:type] == "JSON"
+        data[data.index(key)] = if value[:type] == "JSON" || value[:type] == "File"
                                   { key => {} }
                                 else
                                   { key => [] }
@@ -223,7 +226,7 @@ module CustomGrape
     end
 
     def ransack_params
-      documentation_filter_params = (route.settings[:declared_params] - [:page, :per_page, :offset, :order_by]).map(&:to_s)
+      documentation_filter_params = (route.settings[:declared_params] - [:page, :per_page, :offset, :order]).map(&:to_s)
 
       params.select { |key, _| key.in?(documentation_filter_params) && key.in?(ransack_keys) }.map { |key, value| [key, value.is_a?(String) ? value.strip : value] }.to_h
     end
