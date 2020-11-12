@@ -34,7 +34,7 @@ module CustomGrape
     end
 
     def authorize_and_response_collection
-      authorize! :read, resource_class
+      authorize! :read, auth_resource_class
 
       response_collection
     end
@@ -58,7 +58,7 @@ module CustomGrape
     end
 
     def authorize_and_response_resource
-      authorize! :read, resource
+      authorize! :read, auth_resource
 
       response_resource
     end
@@ -111,7 +111,7 @@ module CustomGrape
       })
 
       if options[:authorize]
-        authorize! options[:auth_action], resource
+        authorize! options[:auth_action], auth_resource
       end
 
       if data.present? ? resource.send(action, data.to_h.deep_symbolize_keys) : resource.send(action)
@@ -324,7 +324,15 @@ module CustomGrape
       Rails.env.production? || Rails.env.staging?
     end
 
-   def response_success(message = "OK", options = {})
+    def auth_resource
+      @auth_resource ||= resource
+    end
+
+    def auth_resource_class
+      @auth_resource_class ||= resource_class
+    end
+
+    def response_success(message = "OK", options = {})
       { code: 200, message: message }.merge(options)
     end
 
