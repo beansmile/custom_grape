@@ -43,7 +43,7 @@ module CustomGrape
                                         "#{entity_namespace}::#{options[:resource_class]}".constantize
                                       end
 
-        base_apis(*args, options, &block)
+        base_apis(*actions, options, &block)
       end
 
       def base_apis(*args, &block)
