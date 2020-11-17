@@ -96,15 +96,15 @@ module CustomGrape
       authorize_and_run_member_action(:destroy, options)
     end
 
-    def authorize_and_run_member_action(action, options = {}, data = {})
+    def authorize_and_run_member_action(action, options = {}, *data)
       options.reverse_merge!({
         authorize: true
       })
 
-      run_member_action(action, options, data)
+      run_member_action(action, options, *data)
     end
 
-    def run_member_action(action, options = {}, data = {})
+    def run_member_action(action, options = {}, *data)
       options.reverse_merge!({
         authorize: false,
         auth_action: action,
@@ -114,7 +114,7 @@ module CustomGrape
         authorize! options[:auth_action], auth_resource
       end
 
-      if data.present? ? resource.send(action, data.to_h.deep_symbolize_keys) : resource.send(action)
+      if data.present? ? resource.send(action, *data) : resource.send(action)
         response_resource
       else
         response_record_error(resource)
