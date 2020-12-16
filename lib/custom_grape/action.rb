@@ -56,11 +56,19 @@ module CustomGrape
         apis_resource_entity = apis_config[object_id][:resource_entity] = options[:resource_entity]
         apis_resource_class = apis_config[object_id][:resource_class] = options[:resource_class]
         apis_belongs_to = options.delete(:belongs_to)
+        apis_belongs_to_find_by_key = options.delete(:belongs_to_find_by_key)
         apis_namespace = options.delete(:namespace)
 
         config_key = ""
         config_key = "/#{apis_namespace}" if apis_namespace
-        config_key += "/#{apis_belongs_to.to_s.pluralize.downcase}/:#{apis_belongs_to.to_s.foreign_key}" if apis_belongs_to
+        if apis_belongs_to
+          config_key += "/#{apis_belongs_to.to_s.pluralize.downcase}"
+          config_key += if apis_belongs_to_find_by_key
+                          "/:#{apis_belongs_to_find_by_key}"
+                        else
+                          "/:#{apis_belongs_to.to_s.foreign_key}"
+                        end
+        end
         config_key += "/#{base.name.split("::")[2..-1].join("::").underscore.pluralize}"
 
         namespace config_key do
@@ -77,7 +85,18 @@ module CustomGrape
               return @parent if @parent
               return unless apis_belongs_to
 
-              @parent = apis_belongs_to.to_s.classify.constantize.find(params[apis_belongs_to.to_s.foreign_key.to_sym])
+              @parent = if apis_belongs_to_find_by_key
+                          parent_class.find_by!(apis_belongs_to_find_by_key => params[apis_belongs_to_find_by_key.to_sym])
+                        else
+                          parent_class.find(params[apis_belongs_to.to_s.foreign_key.to_sym])
+                        end
+            end
+
+            define_method :parent_class do
+              return @parent_class if @parent_class
+              return unless apis_belongs_to
+
+              @parent_class = apis_belongs_to.to_s.classify.constantize
             end
 
             define_method :end_of_association_chain do
