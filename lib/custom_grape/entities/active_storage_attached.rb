@@ -6,5 +6,6 @@ module CustomGrape::Entities
     expose :signed_id
     expose :content_type
     expose :filename
+    expose :byte_size
   end
 end
