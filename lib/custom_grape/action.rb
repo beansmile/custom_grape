@@ -96,7 +96,7 @@ module CustomGrape
               return @parent_class if @parent_class
               return unless apis_belongs_to
 
-              @parent_class = apis_belongs_to.to_s.classify.constantize
+              @parent_class = resource_class.reflect_on_association(apis_belongs_to).class_name.classify.constantize
             end
 
             define_method :end_of_association_chain do
