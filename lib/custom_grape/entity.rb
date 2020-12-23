@@ -88,8 +88,25 @@ module CustomGrape
 
       return options if model.nil?
 
+      if model.attachment_reflections.keys.include?(attribute.to_s)
+        type_is_array = model.attachment_reflections[attribute.to_s].is_a? ActiveStorage::Reflection::HasManyAttachedReflection
+        if type_is_array
+          options[:documentation][:types] = [Array[String], Array[Hash]]
+        else
+          options[:documentation][:type] = String
+        end
+        options[:documentation][:coerce_with] = ->(val) {
+          case val
+          when String
+            val
+          when Hash
+            val[:signed_id]
+          when Array
+            val.map { |v| v.is_a?(String) ? v : v[:signed_id] }
+          end
+        }
       # enum 类型在数据库是整型，但是暴露出来是 string
-      if model.defined_enums[attribute.to_s]
+      elsif model.defined_enums[attribute.to_s]
         options[:documentation] ||= {}
         options[:documentation][:values] = model.send(attribute.to_s.pluralize).keys
         options[:documentation][:type] = String
