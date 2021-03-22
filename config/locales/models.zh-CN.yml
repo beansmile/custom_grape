@@ -1,0 +1,162 @@
+zh-CN:
+  hints:
+    confirm_to_execute_the_action: 确定执行此操作？
+    action_executed_successful: 操作执行成功
+  actions:
+    create: 创建%{resource}
+    publish: 发布
+    save_as_draft: 存草稿
+  activerecord:
+    models: &models
+      user: 用户
+      admin_user: 管理员
+      admin_users_role: 管理员角色
+      admin_users_roles: 管理员角色
+      custom_page: 自定义页面
+      page: 静态页面
+      setting: 平台设置
+      banner: 轮播
+      static_page: 静态页面
+      preset_page: 预置页面
+      application: 应用
+      merchant: 商家
+      store: 店铺
+      stores: 店铺
+      bean/store_variant: 店铺商品
+      bean/custom_page: 自定义页面
+      order: 订单
+      bean/order: 订单
+      bean/after_sale: 售后
+      bean/after_sale_item: 售后项
+    attributes:
+      bean/order:
+        address: 收货地址
+        state: 状态
+        item_total: 商品总额
+        total: 总金额
+        refund_amount: 退款金额
+        user_remark: 买家备注
+        admin_user_remark: 管理员备注
+        completed_at: 支付时间
+        user: 用户
+        number: 订单编号
+        shipment_state: 发货状态
+        shipment_total: 运费总金额
+        promo_total: 优惠总金额
+        adjustment_total: 调整总金额
+        line_items: 订单项
+        apply_reason: 退款原因
+        order_source_type: 下单方式
+        auto_close_at: 自动关闭订单时间
+        auto_receive_at: 自动确认收货时间
+      bean/order/order_source_type:
+        directly_buy: 直接下单
+        shopping_cart: 购物车下单
+      bean/variant:
+        sku: 货号
+      bean/order/states:
+        init: 待支付
+        completed: 已支付
+        applied: 申请退款
+        refunding: 退款中
+        cancelled: 已退款
+        closed: 已关闭
+      bean/order/shipment_states:
+        init: 初始
+        pending: 待发货
+        partial: 部分发货
+        shipped: 已发货
+        cancelled: 已取消
+        received: 已确认收货
+      variants:
+        sku: 货号
+      bean/product:
+        variants: 商品SKU
+        taxons: 分类
+      user:
+        avatar: 头像
+        screen_name: 名称
+      admin_user:
+        email: 邮箱
+        password: 密码
+        password_confirmation: 密码确认
+        name: 姓名
+        phone: 手机号
+      admin_users_role:
+        store_id: 店铺
+        merchant_id: 商家
+        application_id: 应用
+      page:
+        content: 内容
+        title: 标题
+        status: 状态
+        slug: slug
+        views_count: 浏览数
+        type: 类型
+      page/status:
+        draft: 草稿
+        published: 已发布
+      setting:
+        name: 设置名称
+        var: 设置项
+        value: 设置值
+      banner:
+        page_position: 页面位置
+        target: 目标
+        position: 优先级
+        kind: 类型
+      banner/page_position:
+      banner/kind:
+        web_link: 网站链接
+        image: 纯图片
+        mp_link: 小程序链接
+      bean/application:
+        mobile: 联系电话
+      bean/after_sale:
+        number: 售后编号
+        state: 状态
+        after_sale_type: 售后类型
+        agreed_at: 同意时间
+        reason: 售后原因
+        amount: 售后金额
+        reject_reason: 拒绝原因
+      bean/after_sale/states:
+        init: 等待卖家同意
+        pending: 等待买家寄回商品
+        shipped: 等到卖家确认收货
+        refused: 卖家拒绝售后请求
+        refunding: 正在退款
+        completed: 售后完成
+        closed: 售后关闭
+      bean/after_sale/after_sale_types:
+        refund: 仅退款
+        sale_refund: 退货退款
+      bean/payment_method:
+        apiclient_cert: 商户证书
+  activemodel:
+    attributes:
+      bean/single_store/product:
+        option_type_ids: 规格
+      bean/single_store/variant:
+        sku: 货号
+  attributes:
+    <<: *models
+    id: ID
+    created_at: 创建时间
+    updated_at: 更新时间
+    name: 名称
+    avatar: 头像
+    images: 图片
+    action: 操作
+    likes_count: 喜欢数
+    status: 状态
+    wxacode: 小程序码
+    title: 标题
+    content: 内容
+    alt: 图片描述
+    quantity: 数量
+    weight: 重量
+    store_variant_forms: SKU信息
+    cost_price: 价格
+    origin_price: 划线价
+    count_on_hand: 库存

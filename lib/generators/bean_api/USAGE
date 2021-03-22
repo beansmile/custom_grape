@@ -1,0 +1,13 @@
+Description:
+    Explain the generator
+
+Example:
+    rails generate bean_api taxonomy AdminAPI
+
+    This will create:
+        create  app/services/admin_api/entities/bean/taxonomy.rb
+        insert  app/services/admin_api/v1.rb
+        create  app/services/admin_api/entities/bean/merchant.rb
+        insert  app/services/admin_api/v1.rb
+        create  app/services/admin_api/v1/bean/taxonomies.rb
+        insert  app/services/admin_api/v1.rb

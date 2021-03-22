@@ -1,0 +1,34 @@
+wechat_mini_program:
+  id: 1
+  provider: "wechat_mini_program"
+  primary_uid: "oaGM548dahNra-6DRY9qqgr4mJb4"
+  user_id: 1
+  user_info:
+    openId: "oaGM548dahNra-6DRY9qqgr4mJb4"
+    nickName: "周昌权"
+    gender: 1
+    language: "zh_CN"
+    city: "Guangzhou"
+    province: "Guangdong"
+    country: "China"
+    avatarUrl: "https://wx.qlogo.cn/mmopen/vi_32/UVbCsPicXcXnDwOQmAlyeibzK1hAsib5mWaoodlGIiaGcRcdjEeapxIvwJ1ncWwYDicHhkJTxnUuTBzTJu9svjSouEg/132"
+    watermark:
+      timestamp: 1594630074
+      appid: wx7dd9520884e4b929
+  credentials:
+    session_key: "5xSCH+5kmlONWLT/+9roEg=="
+  extra:
+    params:
+      code: "fake_code"
+      encrypted_data: "b34qGy0tLgMVYfVNTu7WAt6VbtGcVkX2YDig9vlAnDznBaHy8v36dQZ1hgyw/6aLiBZQpZRsis5HgOwakZZnyBnJQqDU44qnS0k9WR72nDvQY6+CkamSBenEUqx1mhT3Uspzh8WfrMj3O4VzCnNxm+kRcVGt5oU0XolIoBzgJbpjMXt5qU/j9ZXAf54lFqk7hEf8uIZ7sKi/TbEdodJQFBlqsK9HXoRDhCmeeQSs7fySOVSgD+MQkKwfI0p32tq0cEIRi+6UAMlx8yuwUzCYd71jc6b6602D3pFIyc88hJ0OXXpjwBvQH+XeoKjRZ2JIMgjcj0laZE64Y20juF31yrJnV1hXKI+Zld948QgKR1qzhFCcrW93BuVKxYMPmn+vDSAgTyzxn0MW2LfqaAOIdc5bCoKhD0JiOPrjqhypOEZuXlOr5Ofxzk8eoZ2Es0r/BKxyIGObpsTyIgReEcj3yxZDel+mkOkDfXWxVUMXb7U="
+      iv: "1/AEOS7hflHJ94bUsk/QDQ=="
+
+basic_authorization:
+  id: 2
+  provider: "wechat_mini_program"
+  primary_uid: "oaGM54xm3oibGr6NXLgo0HL1utD8" # Charlie's WeChat openid
+  user_id: 2
+  user_info: {}
+  credentials:
+    session_key: "R0mLiBQPYVWikvz4hgOWcQ=="
+  extra: {}

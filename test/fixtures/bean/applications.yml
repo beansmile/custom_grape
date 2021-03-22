@@ -1,0 +1,10 @@
+one:
+  id: 1
+  name: 应用
+  appid: 'wx7dd9520884e4b929'
+  wechat_application_id: 1
+
+two:
+  id: 2
+  name: 应用2
+  wechat_application_id: 2

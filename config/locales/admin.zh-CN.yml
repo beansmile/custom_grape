@@ -1,0 +1,5 @@
+zh-CN:
+  active_admin:
+    move: 移动
+    scopes:
+      all: 全部

@@ -1,0 +1,12 @@
+{
+  resource: '<%= collection_name %>',
+  index: {
+    requestURL: '/<%= collection_name %>',
+    sourcePageProps: <%= source_page_props %>
+    filter: <%= filter_array %>
+  },
+<%= new_config %>
+  columns: function({ actionColumn = {} } = {}) {
+    return <%= columns_array %>
+  }
+}

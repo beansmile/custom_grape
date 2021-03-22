@@ -1,0 +1,9 @@
+# Read about fixtures at https://api.rubyonrails.org/classes/ActiveRecord/FixtureSet.html
+
+one:
+  id: 1
+  appid: "authorizer_appid"
+
+two:
+  id: 2
+  appid: "wx7dd9520884e4b929"

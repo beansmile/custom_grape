@@ -1,0 +1,13 @@
+Description:
+    generate admin api template
+
+Example:
+    rails generate api admin_user AdminAPI
+
+    This will do:
+        create  app/services/admin_api/entities/simple_admin_user.rb
+        create  app/services/admin_api/entities/admin_user.rb
+        create  app/services/admin_api/entities/admin_user.rb
+        create  app/services/admin_api/entities/admin_user_detail.rb
+        create  app/services/admin_api/v1/admin_users.rb
+        insert  app/services/admin_api/v1.rb

@@ -1,0 +1,94 @@
+################
+# Gitlab CI Pipeline Workflow:
+# feature development:
+#   build -> test -> code_audit(code_security_audit and code_quality_audit)
+#
+# feature deploy:
+#   build -> test -> deploy(deploy_staging or deploy_production)
+#
+# Deployment
+# - deploy staging: merge feature branch into "develop"
+# - deploy production: merge "develop" branch into "master"
+#
+# Principle
+# - fail fast
+# - done is better than perfect
+################
+stages:
+  - test
+  - code_audit
+  - deploy
+
+# keep report across builds
+cache:
+  key: ci_reports
+  paths:
+    - ci_reports
+    - node_modules/
+
+before_script:
+  - yarn install
+  - rvm install 2.6.4
+  - rvm use 2.6.4
+  - gem install bundler -v 2.1.4 --no-document
+  - gem install code_quality -v 0.4.0 --no-document
+  - bundle install
+
+test:
+  stage: test
+  script:
+  - cp config/database.yml.example config/database.yml
+  - bundle exec spring stop
+  - bundle exec rails db:create RAILS_ENV=test
+  - bundle exec rails db:environment:set RAILS_ENV=test
+  - bundle exec rails db:test:prepare RAILS_ENV=test
+  - bundle exec rails db:migrate RAILS_ENV=test
+  - bundle exec rails test
+  - bundle exec rspec spec
+  except:
+    - develop
+    - staging
+    - master
+
+# jobs for code_audit
+# - code_security_audit
+# - code_quality_audit
+.code_audit: &code_audit
+  stage: code_audit
+  except:
+    - develop
+    - staging
+    - master
+.keep_report_for_each_build: &keep_report_for_each_build
+  - mkdir -p ci_reports/$CI_BUILD_ID
+  # delete all the sub-directories under ci_reports which are older than 1 day
+  - find ci_reports -mindepth 1 -maxdepth 1 -type d -mtime +1 | xargs rm -rf
+  - cp -r tmp/code_quality/ ci_reports/$CI_BUILD_ID/code_quality
+  # show report url
+  - if [ "$GITLAB_RUNNER_WEB_HOST" != "" ]; then echo $CI_PROJECT_DIR | sed "s|/home/gitlab-runner/|http://$GITLAB_RUNNER_WEB_HOST/|" | sed "s|\$|&/ci_reports/$CI_BUILD_ID/code_quality/quality_audit|" ; fi
+# audit code quality in test stage
+code_security_audit:
+  <<: *code_audit
+  script:
+    - bundle exec code_quality security_audit
+code_quality_audit:
+  <<: *code_audit
+  script:
+    - bundle exec code_quality quality_audit fail_fast=false generate_index=true lowest_score=80 rails_best_practices_max_offenses=14 rubocop_max_offenses=100
+  after_script: *keep_report_for_each_build
+
+# jobs for deploy
+# - deploy_staging
+# - deploy_production
+deploy_staging:
+  stage: deploy
+  script:
+  - cap staging deploy
+  only:
+  - develop
+deploy_production:
+  stage: deploy
+  script:
+  - cap production deploy
+  only:
+  - master

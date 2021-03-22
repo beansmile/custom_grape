@@ -1,0 +1,13 @@
+templates: &templates
+
+development:
+  <<: *templates
+
+test:
+  <<: *templates
+
+staging:
+  <<: *templates
+
+production:
+  <<: *templates

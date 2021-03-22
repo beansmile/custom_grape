@@ -1,0 +1,6 @@
+import _ from 'lodash';
+<%= columns_import %>
+
+export default function({ actionColumn = {}, detailPage = false } = {}) {
+  return <%= columns_array %>
+}

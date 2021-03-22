@@ -1,0 +1,26 @@
+.markdown-body {
+  font-size: 14px;
+  color: #222222;
+  overflow-x: hidden;
+  padding: 10px;
+
+  p {
+    line-height: 20px;
+    word-wrap: break-word;
+  }
+
+  img {
+    height: auto !important;
+    vertical-align: top;
+  }
+
+  video {
+    width: 100%;
+  }
+
+  table {
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}

@@ -1,0 +1,13 @@
+en:
+  hints:
+    confirm_to_execute_the_action: Are you sure to execute the action?
+    action_executed_successful: Action executed successful
+  actions:
+    create: Create %{resource}
+    publish: Publish
+    save_as_draft: Save as draft
+  activerecord:
+    models: &models
+  attributes:
+    <<: *models
+    id: ID

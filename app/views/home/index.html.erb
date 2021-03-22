@@ -1,0 +1,25 @@
+<!-- Header -->
+<header id="top" class="header">
+    <div class="text-vertical-center">
+        <h1><%= ENV["APPLICATION"] %></h1>
+    </div>
+</header>
+
+<!-- Footer -->
+<footer>
+    <div class="container">
+        <div class="row">
+            <div class="col-lg-10 col-lg-offset-1 text-center">
+                <p class="text-muted">
+              &copy; <span id="copyright_year"></span> <%= ENV["COMPANY"] %> <a class="icp" href="http://www.miitbeian.gov.cn/">icp num</a>
+                </p>
+            </div>
+        </div>
+    </div>
+    <a id="to-top" href="#top" class="btn btn-dark btn-lg"><i class="fa fa-chevron-up fa-fw fa-1x"></i></a>
+</footer>
+<script>
+(function() {
+    document.getElementById("copyright_year").innerHTML = new Date().getFullYear();
+})();
+</script>

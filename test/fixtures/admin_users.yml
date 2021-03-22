@@ -1,0 +1,13 @@
+one:
+  id: 1
+  email: admin@example.com
+  phone: 13800138000
+  password_digest: <%= BCrypt::Password.create("password", cost: 5) %>
+  name: admin
+
+two:
+  id: 2
+  email: admin2@example.com
+  phone: 13800138002
+  password_digest: <%= BCrypt::Password.create("password", cost: 5) %>
+  name: admin2

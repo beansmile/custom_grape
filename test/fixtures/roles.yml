@@ -1,0 +1,17 @@
+one:
+  id: 1
+  name: 管理员
+  type: Role
+  kind: super
+
+two:
+  id: 2
+  name: 管理员2
+  type: Role
+  kind: custom
+
+three:
+  id: 3
+  name: 管理员3
+  type: Role
+  kind: store

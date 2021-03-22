@@ -1,0 +1,5 @@
+尊敬的 <%= @admin_users_role.admin_user.email.split("@")[0] %> 用户，
+您已被店铺 <%= @admin_users_role.application.name %> 邀请成为 <%= @admin_users_role.role.name %>。
+<%= link_to "点击链接", "#{Rails.application.credentials.dig(Rails.env.to_sym, :host)}/admin/home" %> 跳转到登录页面
+如果您是首次使用 MagicBean, 请 <%= link_to "点击这里", "#{Rails.application.credentials.dig(Rails.env.to_sym, :host)}/admin/password" %> 跳转到重置密码页面。
+您不可回复此邮件，如果遇问题，请联系 <%= Setting.customer_service_email.presence || "support@magicbeanmall.com" %>

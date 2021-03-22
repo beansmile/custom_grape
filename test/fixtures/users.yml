@@ -1,0 +1,12 @@
+one:
+  id: 1
+  screen_name: admin
+  tracking_code: "X8lms1d1"
+  sns_authorized_at: <%= Time.current.to_s(:db) %>
+  application_id: 2
+
+two:
+  id: 2
+  screen_name: ""
+  tracking_code: "x1amS9d1"
+  application_id: 2

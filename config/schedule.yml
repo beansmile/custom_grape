@@ -1,0 +1,3 @@
+RefreshAllApplicationAccessTokenJob:
+  cron: "0 * * * *" # At minute 0.
+  class: WechatThirdPartyPlatform::RefreshAllAccessTokenJob

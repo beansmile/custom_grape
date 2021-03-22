@@ -1,0 +1,15 @@
+one:
+  id: 1
+  admin_user_id: 1
+  role_id: 1
+  application_id: 1
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>
+
+two:
+  id: 2
+  admin_user_id: 1
+  role_id: 3
+  application_id: 1
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>

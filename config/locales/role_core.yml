@@ -1,0 +1,38 @@
+zh-CN:
+  role_core:
+    models:
+      user: 小程序用户管理
+      custom_page: 自定义页面
+      option_type: 商品规格管理
+      shipping_template: 运费模板管理
+      taxon: 分类单元管理
+      order: 订单管理
+      custom_variant_list: 自定义商品列表
+      product: 商品管理
+      payment_method: 支付配置
+      tester: 体验者管理
+      wechat_category: 类目管理
+      data_analyse: 数据统计
+      application: 应用管理
+      shipment: 运单管理
+      blob: 资源管理
+    attributes:
+      normal: &normal
+        read: 查看
+        update: 更新
+        create: 创建
+        destroy: 删除
+        audit_refund: 审核退款
+        publish: 发布
+        rollback_data: 版本回退
+      admin_user:
+        <<: *normal
+      data_analyse:
+        user_portrait: 用户画像数据
+        visit_distribution: 访问分布数据
+        visit_page: 访问页面数据
+        retain_info: 小程序访问留存
+        visit_trend: 小程序访问趋势
+      shipment:
+        <<: *normal
+        ship: 发货

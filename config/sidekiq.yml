@@ -1,0 +1,11 @@
+:concurrency: 5
+:logfile: ./log/sidekiq.log
+
+production:
+  :concurrency: 15
+
+:queues:
+  - default
+  - mailers
+  - active_storage_analysis
+  - active_storage_purge
