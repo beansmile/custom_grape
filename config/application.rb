@@ -15,8 +15,7 @@ module MagicBeanBackend
     config.action_mailer.default_url_options = { host: Rails.application.credentials.dig(Rails.env.to_sym, :host) }
     config.action_mailer.smtp_settings = Rails.application.credentials.dig(Rails.env.to_sym, :smtp_setting)&.symbolize_keys!
 
-    redis_config = Rails.application.credentials.dig(Rails.env.to_sym, :redis)
-    redis_url = redis_config.dig(:redis_url)
+    redis_url = Rails.application.credentials.dig(Rails.env.to_sym, :redis, :redis_url)
     redis_namespace = "#{Rails.application.class.module_parent.name.underscore}_#{Rails.env}"
     config.cache_store = :redis_cache_store, { url: redis_url, namesapce: redis_namespace }
 
