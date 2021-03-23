@@ -11,15 +11,10 @@ module CustomGrape
       @end_of_association_chain ||= resource_class
     end
 
-    def additional_select
-      @additional_select ||= ""
-    end
-
     def collection
       return @collection if @collection
 
-      search = end_of_association_chain.select((["#{resource_class.table_name}.*"] + [additional_select]).reject(&:blank?).join(","))
-        .accessible_by(current_ability).ransack(ransack_params)
+      search = end_of_association_chain.accessible_by(current_ability).ransack(ransack_params)
       search.sorts = "#{params[:order].keys.first} #{params[:order].values.first}" if params[:order].present?
 
       @collection = search.result(distinct: true).includes(includes).order(default_order).order("id DESC")

@@ -139,8 +139,7 @@ module CustomGrape
         route_param find_by_key do
           desc summary, {
             summary: summary,
-            success: resource_entity,
-            skip_authentication: ability.can?(auth_action, resource_class)
+            success: resource_entity
           }.merge(options)
           params do
             use "#{path}_params".to_sym if (@api.namespace_stackable_with_hash(:named_params) || {})["#{path}_params".to_sym]
@@ -149,10 +148,6 @@ module CustomGrape
             authorize_and_run_member_action(action, { auth_action: auth_action }, resource_params)
           end
         end
-      end
-
-      def ability
-        ability = Ability.new
       end
 
       def apis_config
@@ -179,8 +174,7 @@ module CustomGrape
         desc "#{resource_class.model_name.human}列表", {
           summary: "#{resource_class.model_name.human}列表",
           success: collection_entity,
-          is_array: true,
-          skip_authentication: ability.can?(:read, resource_class)
+          is_array: true
         }.merge(options)
         paginate
         params do; use :index_params; end
@@ -191,8 +185,7 @@ module CustomGrape
         route_param find_by_key do
           desc "#{resource_class.model_name.human}详情", {
             summary: "#{resource_class.model_name.human}详情",
-            success: resource_entity,
-            skip_authentication: ability.can?(:read, resource_class)
+            success: resource_entity
           }.merge(options)
           get do; show_api; end
         end
@@ -201,8 +194,7 @@ module CustomGrape
       def create_api(options = {})
         desc "创建#{resource_class.model_name.human}", {
           summary: "创建#{resource_class.model_name.human}",
-          success: resource_entity,
-          skip_authentication: ability.can?(:create, resource_class)
+          success: resource_entity
         }.merge(options)
         params do; use :create_params; end
         post do; create_api; end
@@ -212,8 +204,7 @@ module CustomGrape
         route_param find_by_key do
           desc "更新#{resource_class.model_name.human}", {
             summary: "更新#{resource_class.model_name.human}",
-            success: resource_entity,
-            skip_authentication: ability.can?(:update, resource_class)
+            success: resource_entity
           }.merge(options)
           params do; use :update_params; end
           put do; update_api; end
@@ -224,8 +215,7 @@ module CustomGrape
         route_param find_by_key do
           desc "删除#{resource_class.model_name.human}", {
             summary: "删除#{resource_class.model_name.human}",
-            success: resource_entity,
-            skip_authentication: ability.can?(:destroy, resource_class)
+            success: resource_entity
           }.merge(options)
           delete do; destroy_api; end
         end
