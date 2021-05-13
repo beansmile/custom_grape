@@ -1,44 +1,61 @@
-# CustomGrape
-
-Welcome to your new gem! In this directory, you'll find the files you need to be able to package up your Ruby library into a gem. Put your Ruby code in the file `lib/custom_grape`. To experiment with that code, run `bin/console` for an interactive prompt.
-
-TODO: Delete this and the text above, and describe your gem
-
-## Installation
-
-Add this line to your application's Gemfile:
-
-```ruby
-gem 'custom_grape'
-```
-
-And then execute:
-
-    $ bundle install
-
-Or install it yourself as:
-
-    $ gem install custom_grape
-
 ## Usage
 
-TODO: Write usage instructions here
+* 一般使用场景以 `app_api/v1/products.rb` 来举例，hash参数不需要填写，默认参数会根据文件名生成，以下把生成的参数都列出来
 
-## Development
+```
+apis :index, :show, :create, :update, :destroy, {
+  # 是否跳过用户登录验证，默认为false
+  skip_authentication: false,
+  # 如需通过slug查找对象则把id替换成slug
+  find_by_key: :id
+  resource_class: Product,
+  resource_entity: AppAPI::Entities::ProductDetail,
+  collection_entity: AppAPI::Entities::Product，
+  # 如不填则生成 products namespace，如填写mine，则生成 mine/products namespace
+  namespace: nil,
+  # 如填写 :product_category 则生成 product_categories/:product_category_id/products namespace，可调用 parent 方法获取 product_category
+  belongs_to: nil,
+  # 不填写则会根据belongs_to配置生成 product_category_id，如填写则 :slug 则生成 product_categories/:slug/products
+  belongs_to_find_by_key: nil
+}
+```
 
-After checking out the repo, run `bin/setup` to install dependencies. Then, run `rake spec` to run the tests. You can also run `bin/console` for an interactive prompt that will allow you to experiment.
+* 如需要重写API，可重定义action名+_api覆盖（如重写index则在helpers里创建index_api）
 
-To install this gem onto your local machine, run `bundle exec rake install`. To release a new version, update the version number in `version.rb`, and then run `bundle exec rake release`, which will create a git tag for the version, push git commits and tags, and push the `.gem` file to [rubygems.org](https://rubygems.org).
+```
+apis :index, :show, :create, :update, :destroy do
+  helpers do
+    def index_api
+      # 重写内容
+    end
+  end
+end
+```
 
-## Contributing
+* index API会自动根据index_params过滤掉没有定义的查找参数（ransack太自由，这里加白名单限制）
 
-Bug reports and pull requests are welcome on GitHub at https://github.com/[USERNAME]/custom_grape. This project is intended to be a safe, welcoming space for collaboration, and contributors are expected to adhere to the [code of conduct](https://github.com/[USERNAME]/custom_grape/blob/master/CODE_OF_CONDUCT.md).
+```
+apis :index do
+  helpers do
+    params :index_params do
+      optional :title_eq
+    end
+  end
+end
+```
 
+* create和update API会根据自动create_params和update_params生成permitted_params（需定义好type，尤其是Array[JSON]这种数据类型）
 
-## License
-
-The gem is available as open source under the terms of the [MIT License](https://opensource.org/licenses/MIT).
-
-## Code of Conduct
-
-Everyone interacting in the CustomGrape project's codebases, issue trackers, chat rooms and mailing lists is expected to follow the [code of conduct](https://github.com/[USERNAME]/custom_grape/blob/master/CODE_OF_CONDUCT.md).
+```
+apis :create, :update do
+  helpers do
+    params :create_params do
+      optional :name, type: String
+      optional :tag_ids: type: Array[Integer]
+      optional :comment_attributes, type: Array[JSON] do
+        optional :content, type: String
+      end
+    end
+  end
+end
+```
