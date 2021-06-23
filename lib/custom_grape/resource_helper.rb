@@ -34,6 +34,16 @@ module CustomGrape
       response_collection
     end
 
+    def authorize_and_response_read_options
+      authorize! :read_options, auth_resource_class
+
+      @collection = end_of_association_chain.accessible_by(current_ability, :read_options).ransack(ransack_params).result(distinct: true).order(default_order).order("id DESC")
+
+      options = { with: route.settings[:description][:success] }
+
+      present present_collection, options
+    end
+
     def present_collection
       @present_collection ||= params[:page] == 0 ? collection : paginate(collection)
     end

@@ -37,6 +37,12 @@ module CustomGrape
         options[:find_by_key] ||= :id
         options[:resource_class] ||= base.name.split("::")[2..-1].join("::").singularize.constantize
         options[:collection_entity] ||= "#{entity_namespace}::#{options[:resource_class]}".constantize
+        split_resource_class_name = options[:resource_class].name.split("::")
+        options[:read_options_entity] ||= if split_resource_class_name.length > 1
+                                            (split_resource_class_name[0..-2] + ["Simple#{split_resource_class_name[-1]}"]).join("::")
+                                          else
+                                            "Simple#{options[:resource_class]}"
+                                          end
         options[:resource_entity] ||= begin
                                         "#{entity_namespace}::#{options[:resource_class]}Detail".constantize
                                       rescue NameError
@@ -53,6 +59,7 @@ module CustomGrape
         apis_config[object_id] ||= {}
         apis_find_by_key = apis_config[object_id][:find_by_key] = options.delete(:find_by_key)
         apis_collection_entity = apis_config[object_id][:collection_entity] = options[:collection_entity]
+        apis_read_options_entity = apis_config[object_id][:read_options_entity] = options[:read_options_entity]
         apis_resource_entity = apis_config[object_id][:resource_entity] = options[:resource_entity]
         apis_resource_class = apis_config[object_id][:resource_class] = options[:resource_class]
         apis_belongs_to = options.delete(:belongs_to)
@@ -74,6 +81,7 @@ module CustomGrape
         namespace config_key do
           helpers do
             params :index_params do; end
+            params :read_options_params do; end
             params :create_params do; end
             params :update_params do; end
 
@@ -107,6 +115,10 @@ module CustomGrape
               @collection_entity ||= apis_collection_entity
             end
 
+            define_method :read_options_entity do
+              @read_options_entity ||= apis_read_options_entity
+            end
+
             define_method :resource_entity do
               @resource_entity ||= apis_resource_entity
             end
@@ -116,6 +128,7 @@ module CustomGrape
             end
 
             def index_api; authorize_and_response_collection; end
+            def read_options_api; authorize_and_response_read_options; end
             def show_api; authorize_and_response_resource; end
             def create_api; authorize_and_create_resource; end
             def update_api; authorize_and_update_resource; end
@@ -124,9 +137,19 @@ module CustomGrape
 
           instance_exec(&block) if block_given?
 
+          has_show_api = false
+
           actions.each do |action|
+            if action.to_s == "show"
+              has_show_api = true
+
+              next
+            end
+
             send("#{action}_api", options)
           end
+
+          show_api(options) if has_show_api
         end
       end
 
@@ -166,6 +189,10 @@ module CustomGrape
         apis_config[object_id][:collection_entity]
       end
 
+      def read_options_entity
+        apis_config[object_id][:read_options_entity]
+      end
+
       def resource_entity
         apis_config[object_id][:resource_entity]
       end
@@ -179,6 +206,16 @@ module CustomGrape
         paginate
         params do; use :index_params; end
         get do; index_api; end
+      end
+
+      def read_options_api(options = {})
+        desc "#{resource_class.model_name.human}选项列表", {
+          summary: "#{resource_class.model_name.human}选项列表",
+          is_array: true
+        }.merge(options)
+        paginate
+        params do; use :read_options_params; end
+        get "read_options" do; read_options_api; end
       end
 
       def show_api(options = {})
