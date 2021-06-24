@@ -38,11 +38,13 @@ module CustomGrape
         options[:resource_class] ||= base.name.split("::")[2..-1].join("::").singularize.constantize
         options[:collection_entity] ||= "#{entity_namespace}::#{options[:resource_class]}".constantize
         split_resource_class_name = options[:resource_class].name.split("::")
-        options[:read_options_entity] ||= if split_resource_class_name.length > 1
-                                            (split_resource_class_name[0..-2] + ["Simple#{split_resource_class_name[-1]}"]).join("::")
-                                          else
-                                            "Simple#{options[:resource_class]}"
-                                          end
+        simple_entity_name ||= if split_resource_class_name.length > 1
+                                 (split_resource_class_name[0..-2] + ["Simple#{split_resource_class_name[-1]}"]).join("::")
+                               else
+                                 "Simple#{options[:resource_class]}"
+                               end
+
+        options[:read_options_entity] ||= "#{entity_namespace}::#{simple_entity_name}".constantize rescue nil
         options[:resource_entity] ||= begin
                                         "#{entity_namespace}::#{options[:resource_class]}Detail".constantize
                                       rescue NameError
