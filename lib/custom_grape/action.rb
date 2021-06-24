@@ -211,6 +211,7 @@ module CustomGrape
       def read_options_api(options = {})
         desc "#{resource_class.model_name.human}选项列表", {
           summary: "#{resource_class.model_name.human}选项列表",
+          success: read_options_entity,
           is_array: true
         }.merge(options)
         paginate
