@@ -58,7 +58,7 @@ module CustomGrape
         options = args.extract_options!
         actions = args.flatten
 
-        apis_config[object_id] ||= {}
+        apis_config[object_id] ||= { class_name: base.name }
         apis_find_by_key = apis_config[object_id][:find_by_key] = options.delete(:find_by_key)
         apis_collection_entity = apis_config[object_id][:collection_entity] = options[:collection_entity]
         apis_read_options_entity = apis_config[object_id][:read_options_entity] = options[:read_options_entity]
