@@ -98,7 +98,13 @@ module CustomGrape
     end
 
     def authorize_and_destroy_resource(options = {})
-      authorize_and_run_member_action(:destroy, options)
+      authorize! :destroy, resource
+
+      if resource.destroy
+        response_success
+      else
+        response_record_error(resource)
+      end
     end
 
     def authorize_and_run_member_action(action, options = {}, *data)

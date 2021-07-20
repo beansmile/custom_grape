@@ -255,7 +255,7 @@ module CustomGrape
         route_param find_by_key do
           desc "删除#{resource_class.model_name.human}", {
             summary: "删除#{resource_class.model_name.human}",
-            success: resource_entity
+            success: CustomGrape::Entities::SuccessfulResult
           }.merge(options)
           delete do; destroy_api; end
         end
