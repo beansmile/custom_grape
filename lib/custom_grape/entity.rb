@@ -88,6 +88,8 @@ module CustomGrape
 
       return options if model.nil?
 
+      options[:documentation] ||= {}
+
       if model.attachment_reflections.keys.include?(attribute.to_s)
         type_is_array = model.attachment_reflections[attribute.to_s].is_a? ActiveStorage::Reflection::HasManyAttachedReflection
         if type_is_array
@@ -107,29 +109,27 @@ module CustomGrape
         }
       # enum 类型在数据库是整型，但是暴露出来是 string
       elsif model.defined_enums[attribute.to_s]
-        options[:documentation] ||= {}
         options[:documentation][:values] = model.send(attribute.to_s.pluralize).keys
         options[:documentation][:type] = String
-      else
-        column = model.columns_hash[attribute.to_s]
-        if column
-          options[:documentation] ||= {}
-          options[:documentation][:type] = {
-            primary_key: String,
-            string: String,
-            text: String,
-            integer: Integer,
-            bigint: Integer,
-            float: Float,
-            decimal: BigDecimal,
-            numeric: Numeric,
-            datetime: DateTime,
-            time: Time,
-            date: Date,
-            binary: String,
-            boolean: Grape::API::Boolean
+        options[:documentation][:allow_blank] = true
+      elsif column = model.columns_hash[attribute.to_s]
+        options[:documentation][:type] = {
+          primary_key: String,
+          string: String,
+          text: String,
+          integer: Integer,
+          bigint: Integer,
+          float: Float,
+          decimal: BigDecimal,
+          numeric: Numeric,
+          datetime: DateTime,
+          time: Time,
+          date: Date,
+          binary: String,
+          boolean: Grape::API::Boolean
           }[column.type]
-        end
+      else
+        options[:documentation][:type] = String
       end
 
       options
