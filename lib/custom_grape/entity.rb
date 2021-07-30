@@ -111,7 +111,6 @@ module CustomGrape
       elsif model.defined_enums[attribute.to_s]
         options[:documentation][:values] = model.send(attribute.to_s.pluralize).keys
         options[:documentation][:type] = String
-        options[:documentation][:allow_blank] = true
       elsif column = model.columns_hash[attribute.to_s]
         options[:documentation][:type] = {
           primary_key: String,
