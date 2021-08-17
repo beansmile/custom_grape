@@ -59,3 +59,15 @@ apis :create, :update do
   end
 end
 ```
+
+* 可为API单独配置参数
+
+```
+apis [
+  create: { tags: ["create"] },
+  :update
+] do
+  ...
+end
+```
+
