@@ -139,19 +139,37 @@ module CustomGrape
 
           instance_exec(&block) if block_given?
 
-          has_show_api = false
+          show_api_index = nil
 
-          actions.each do |action|
-            if action.to_s == "show"
-              has_show_api = true
+          actions_dup = actions.dup
 
-              next
-            end
+          actions.each_with_index do |action, index|
+            action_name = action.is_a?(Hash) ? action.keys[0] : action
 
-            send("#{action}_api", options)
+            show_api_index = index if action_name.to_s == "show"
+
+            break
           end
 
-          show_api(options) if has_show_api
+          # 把show_api移到最后
+          if show_api_index
+            actions_dup.delete_at(show_api_index)
+            actions_dup << actions[show_api_index]
+          end
+
+          actions_dup.each do |action|
+            if action.is_a?(Hash)
+              action_name = action.keys[0]
+              api_options = action.values[0]
+            else
+              action_name = action
+              api_options = {}
+            end
+
+            api_options[:tags] = (api_options[:tags] || []) + ["Model #{resource_class.model_name.human}: #{resource_class.name.underscore.pluralize}"]
+
+            send("#{action_name}_api", api_options.reverse_merge(options))
+          end
         end
       end
 
