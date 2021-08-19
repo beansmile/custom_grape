@@ -39,7 +39,7 @@ module CustomGrape
 
       @collection = end_of_association_chain.accessible_by(current_ability, :read_options).ransack(ransack_params).result(distinct: true).order(default_order).order("id DESC")
 
-      options = { with: route.settings[:description][:success] }
+      options = { with: route_setting_entity }
 
       present present_collection, options
     end
@@ -145,13 +145,17 @@ module CustomGrape
       ActionController::Parameters.new(params).permit(permitted_params)
     end
 
+    def route_setting_entity
+      @route_setting_entity ||= route.settings[:description][:entity] || route.settings[:description][:success]
+    end
+
     def collection_entity
-      @collection_entity ||= route.settings[:description][:success] || "#{entity_namespace_name}::#{resource_class}".constantize
+      @collection_entity ||= route_setting_entity || "#{entity_namespace_name}::#{resource_class}".constantize
     end
 
     def resource_entity
-      @resource_entity ||= if route.settings[:description][:success]
-                             route.settings[:description][:success]
+      @resource_entity ||= if route_setting_entity
+                             route_setting_entity
                            else
                              begin
                                "#{entity_namespace_name}::#{resource_class}Detail".constantize
