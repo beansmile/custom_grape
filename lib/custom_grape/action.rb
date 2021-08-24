@@ -153,9 +153,11 @@ module CustomGrape
           actions.each_with_index do |action, index|
             action_name = action.is_a?(Hash) ? action.keys[0] : action
 
-            show_api_index = index if action_name.to_s == "show"
+            if action_name.to_s == "show"
+              show_api_index = index
 
-            break
+              break
+            end
           end
 
           # 把show_api移到最后
