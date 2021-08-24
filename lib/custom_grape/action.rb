@@ -57,6 +57,13 @@ module CustomGrape
       def base_apis(*args, &block)
         options = args.extract_options!
         actions = args.flatten
+        # 支持 apis [:index, show: {}, create: {}], {}
+        hash_actions = actions.extract_options!
+        unless hash_actions.empty?
+          hash_actions.each do |key, value|
+            actions.push({ key => value })
+          end
+        end
 
         apis_config[object_id] ||= { class_name: base.name }
         apis_find_by_key = apis_config[object_id][:find_by_key] = options.delete(:find_by_key)
