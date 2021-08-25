@@ -174,6 +174,26 @@ module CustomGrape
       @resource_class ||= (request.env["REQUEST_PATH"] || request.path).split("/")[3].classify.constantize
     end
 
+    def auth_action(action)
+      if action.in?([:index, :show])
+        :read
+      elsif action.in?([:create, :update, :destroy, :read_options])
+        action
+      else
+        array = action.to_s.split("_")
+        request_method = array.shift
+
+        ability_action = {
+          get: :read,
+          put: :update,
+          post: :create,
+          delete: :destroy
+        }[request_method.to_sym]
+
+        "#{ability_action}_#{array[0..-2].join("_")}".to_sym
+      end
+    end
+
     def permitted_params
       # clone一份数据，避免 conver 后改变原来的值出现下面error
       # TypeError (no implicit conversion from nil to integer)
