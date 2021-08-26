@@ -181,11 +181,13 @@ module CustomGrape
 
               method_name = action_name.to_s.split("_")[1..-2].join("_")
 
-              define_method "#{action_name}_api" do
+              define_method "#{action_name}_api" do |options = {}|
+                options.reverse_merge!({ auth_action: auth_action(action_name) })
+
                 if resource_params.present?
-                  authorize_and_run_member_action(method_name, { auth_action: auth_action(action_name) }, resource_params)
+                  authorize_and_run_member_action(method_name, options, resource_params)
                 else
-                  authorize_and_run_member_action(method_name, auth_action: auth_action(action_name))
+                  authorize_and_run_member_action(method_name, options)
                 end
               end
             end
@@ -223,14 +225,15 @@ module CustomGrape
               request_method = array.shift
               api_name = array[0..-2].join("_")
               api_route = apis_singleton ? api_name : ":#{find_by_key}/#{api_name}"
+              response_resource_entity = request_method != "delete"
 
               desc "#{resource_class.model_name.human} #{api_name}", {
                 summary: "#{resource_class.model_name.human} #{api_name}",
-                success: resource_entity
+                success: response_resource_entity ? resource_entity : CustomGrape::Entities::SuccessfulResult
               }.merge(api_options.reverse_merge(options))
               # TODO params
               route request_method, api_route do
-                send("#{action_name}_api")
+                send("#{action_name}_api", { response_resource_entity: response_resource_entity })
               end
             end
           end

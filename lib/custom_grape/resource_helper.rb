@@ -98,13 +98,7 @@ module CustomGrape
     end
 
     def authorize_and_destroy_resource(options = {})
-      authorize! :destroy, resource
-
-      if resource.destroy
-        response_success
-      else
-        response_record_error(resource)
-      end
+      authorize_and_run_member_action(:destroy, options.reverse_merge(response_resource_entity: false))
     end
 
     def authorize_and_run_member_action(action, options = {}, *data)
@@ -119,6 +113,7 @@ module CustomGrape
       options.reverse_merge!({
         authorize: false,
         auth_action: action,
+        response_resource_entity: true
       })
 
       if options[:authorize]
@@ -126,7 +121,7 @@ module CustomGrape
       end
 
       if data.present? ? resource.send(action, *data) : resource.send(action)
-        response_resource
+        options[:response_resource_entity] ? response_resource : response_success
       else
         response_record_error(resource)
       end
