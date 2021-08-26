@@ -87,7 +87,11 @@ module CustomGrape
                         end
         end
 
-        config_key += apis_singleton ? "/#{apis_instance_name}" : "/#{apis_collection_name}"
+        config_key += if apis_singleton
+                        "/#{apis_resource_class.name.underscore.singularize}"
+                      else
+                        "/#{apis_resource_class.name.underscore.pluralize}"
+                      end
 
         namespace config_key do
           helpers do
