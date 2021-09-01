@@ -37,7 +37,7 @@ module CustomGrape
     def authorize_and_response_read_options
       authorize! :read_options, auth_resource_class
 
-      @collection = end_of_association_chain.accessible_by(current_ability, :read_options).ransack(ransack_params).result(distinct: true).order(default_order).order("id DESC")
+      @collection = end_of_association_chain.accessible_by(current_ability, :read_options).ransack(ransack_params).result(distinct: true).includes(read_options_includes).order(default_order).order("id DESC")
 
       options = { with: route_setting_entity }
 
@@ -230,6 +230,10 @@ module CustomGrape
     # 如果要处理 n + 1 问题，需重写该方法
     def includes
       fetch_entity_includes(collection_entity, resource_class)
+    end
+
+    def read_options_includes
+      fetch_entity_includes(route_setting_entity, resource_class)
     end
 
     def resource_includes
