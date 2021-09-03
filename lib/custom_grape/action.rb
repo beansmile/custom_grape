@@ -163,7 +163,7 @@ module CustomGrape
               @find_by_key ||= apis_find_by_key
             end
 
-            def build_resource
+            define_method :build_resource do
               @resource = if apis_singleton && parent
                             parent.send("build_#{instance_name}", resource_params)
                           else
