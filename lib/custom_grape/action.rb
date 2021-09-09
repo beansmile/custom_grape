@@ -99,6 +99,13 @@ module CustomGrape
             params :read_options_params do; end
             params :create_params do; end
             params :update_params do; end
+            apis_member_actions.each do |action|
+              action_name = action.keys[0]
+
+              next if action_name.in?([:show, :create, :update, :destroy])
+
+              params "#{action_name}_params".to_sym do; end
+            end
 
             define_method :resource_class do
               @resource_class ||= apis_resource_class
@@ -235,7 +242,7 @@ module CustomGrape
                 summary: "#{resource_class.model_name.human} #{api_name}",
                 success: response_resource_entity ? resource_entity : CustomGrape::Entities::SuccessfulResult
               }.merge(api_options.reverse_merge(options))
-              # TODO params
+              params do; use "#{action_name}_params".to_sym; end
               route request_method, api_route do
                 send("#{action_name}_api", { response_resource_entity: response_resource_entity })
               end
