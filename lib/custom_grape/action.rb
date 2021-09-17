@@ -35,7 +35,11 @@ module CustomGrape
 
         entity_namespace = "::#{base.name.split("::")[0]}::Entities"
         options[:find_by_key] ||= :id
-        options[:resource_class] ||= base.name.split("::")[2..-1].join("::").singularize.constantize
+
+        resource_class_name = base.name.split("::")[2..-1].join("::").singularize
+        options[:resource_class] ||= resource_class_name.constantize
+        options[:instance_name] ||= resource_class_name.underscore.gsub("/", "_")
+        options[:collection_name] ||= resource_class_name.underscore.gsub("/", "_").pluralize
         options[:collection_entity] ||= "#{entity_namespace}::#{options[:resource_class]}".constantize
         split_resource_class_name = options[:resource_class].name.split("::")
         simple_entity_name ||= if split_resource_class_name.length > 1
@@ -57,13 +61,6 @@ module CustomGrape
       def base_apis(*args, &block)
         options = args.extract_options!
         actions = args.flatten
-        # 支持 apis [:index, show: {}, create: {}], {}
-        hash_actions = actions.extract_options!
-        unless hash_actions.empty?
-          hash_actions.each do |key, value|
-            actions.push({ key => value })
-          end
-        end
 
         apis_config[object_id] ||= { class_name: base.name }
         apis_find_by_key = apis_config[object_id][:find_by_key] = options.delete(:find_by_key)
@@ -74,6 +71,10 @@ module CustomGrape
         apis_belongs_to = options.delete(:belongs_to)
         apis_belongs_to_find_by_key = options.delete(:belongs_to_find_by_key)
         apis_namespace = options.delete(:namespace)
+        apis_instance_name = options.delete(:instance_name)
+        apis_collection_name = options.delete(:collection_name)
+        apis_singleton = options.delete(:singleton)
+        apis_member_actions = member_actions(actions)
 
         config_key = ""
         config_key = "/#{apis_namespace}" if apis_namespace
@@ -85,7 +86,12 @@ module CustomGrape
                           "/:#{apis_belongs_to.to_s.foreign_key}"
                         end
         end
-        config_key += "/#{base.name.split("::")[2..-1].join("::").underscore.pluralize}"
+
+        config_key += if apis_singleton
+                        "/#{apis_resource_class.name.underscore.singularize}"
+                      else
+                        "/#{apis_resource_class.name.underscore.pluralize}"
+                      end
 
         namespace config_key do
           helpers do
@@ -93,9 +99,37 @@ module CustomGrape
             params :read_options_params do; end
             params :create_params do; end
             params :update_params do; end
+            apis_member_actions.each do |action|
+              action_name = action.keys[0]
+
+              next if action_name.in?([:show, :create, :update, :destroy])
+
+              params "#{action_name}_params".to_sym do; end
+            end
 
             define_method :resource_class do
               @resource_class ||= apis_resource_class
+            end
+
+            define_method :instance_name do
+              @instance_name ||= apis_instance_name
+            end
+
+            define_method :collection_name do
+              @collection_name ||= apis_collection_name
+            end
+
+            define_method :resource do
+              @resource ||= if apis_singleton
+                              # 后面需要考虑如何加上includes
+                              end_of_association_chain.send(instance_name)
+                            else
+                              object = end_of_association_chain.includes(resource_includes).where("#{find_by_key}" => params[find_by_key]).take
+
+                              raise ActiveRecord::RecordNotFound unless object
+
+                              object
+                            end
             end
 
             define_method :parent do
@@ -136,48 +170,140 @@ module CustomGrape
               @find_by_key ||= apis_find_by_key
             end
 
+            define_method :build_resource do
+              @resource = if apis_singleton && parent
+                            parent.send("build_#{instance_name}", resource_params)
+                          else
+                            end_of_association_chain.new(resource_params)
+                          end
+            end
+
             def index_api; authorize_and_response_collection; end
             def read_options_api; authorize_and_response_read_options; end
             def show_api; authorize_and_response_resource; end
             def create_api; authorize_and_create_resource; end
             def update_api; authorize_and_update_resource; end
             def destroy_api; authorize_and_destroy_resource; end
+
+            apis_member_actions.each do |action|
+              action_name = action.keys[0]
+
+              next if action_name.in?([:show, :create, :update, :destroy])
+
+              method_name = action_name.to_s.split("_")[1..-2].join("_")
+
+              define_method "#{action_name}_api" do |options = {}|
+                options.reverse_merge!({ auth_action: auth_action(action_name) })
+
+                if resource_params.present?
+                  authorize_and_run_member_action(method_name, options, resource_params)
+                else
+                  authorize_and_run_member_action(method_name, options)
+                end
+              end
+            end
           end
 
           instance_exec(&block) if block_given?
 
-          show_api_index = nil
+          default_tags = ["Model #{resource_class.model_name.human}: #{resource_class.name.underscore.pluralize}"]
 
-          actions_dup = actions.dup
+          collection_actions(actions).each do |action|
+            action_name = action.keys[0]
+            api_options = action.values[0]
 
-          actions.each_with_index do |action, index|
-            action_name = action.is_a?(Hash) ? action.keys[0] : action
-
-            if action_name.to_s == "show"
-              show_api_index = index
-
-              break
-            end
-          end
-
-          # 把show_api移到最后
-          if show_api_index
-            actions_dup.delete_at(show_api_index)
-            actions_dup << actions[show_api_index]
-          end
-
-          actions_dup.each do |action|
-            if action.is_a?(Hash)
-              action_name = action.keys[0]
-              api_options = action.values[0]
-            else
-              action_name = action
-              api_options = {}
-            end
-
-            api_options[:tags] = (api_options[:tags] || []) + ["Model #{resource_class.model_name.human}: #{resource_class.name.underscore.pluralize}"]
+            api_options[:tags] = (api_options[:tags] || []) + default_tags
 
             send("#{action_name}_api", api_options.reverse_merge(options))
+          end
+
+          apis_member_actions.each do |action|
+            action_name = action.keys[0]
+            api_options = action.values[0]
+
+            api_options[:tags] = (api_options[:tags] || []) + default_tags
+
+            if action_name.in?([:show, :create, :update, :destroy])
+              if action_name == :create || apis_singleton
+                send("#{action_name}_api", api_options.reverse_merge(options))
+              else
+                route_param find_by_key do
+                  send("#{action_name}_api", api_options.reverse_merge(options))
+                end
+              end
+            else
+              array = action_name.to_s.split("_")
+              request_method = array.shift
+              api_name = array[0..-2].join("_")
+              api_route = apis_singleton ? api_name : ":#{find_by_key}/#{api_name}"
+              response_resource_entity = request_method != "delete"
+
+              desc "#{resource_class.model_name.human} #{api_name}", {
+                summary: "#{resource_class.model_name.human} #{api_name}",
+                success: response_resource_entity ? resource_entity : CustomGrape::Entities::SuccessfulResult
+              }.merge(api_options.reverse_merge(options))
+              params do; use "#{action_name}_params".to_sym; end
+              route request_method, api_route do
+                send("#{action_name}_api", { response_resource_entity: response_resource_entity })
+              end
+            end
+          end
+        end
+      end
+
+      def collection_actions(actions)
+        actions_dup = actions.dup
+
+        hash_actions = actions_dup.extract_options!
+
+        unless hash_actions.empty?
+          hash_actions.each do |key, value|
+            actions_dup.push({ key => value })
+          end
+        end
+
+        actions_dup.map { |action| action.is_a?(Hash) ? action : { action => {} }  }.select { |action| action.keys[0].in?([:index, :read_options]) }
+      end
+
+      def member_actions(actions)
+        actions_dup = actions.dup
+
+        # 支持 apis [:index, show: {}, create: {}], {}
+        hash_actions = actions_dup.extract_options!
+
+        unless hash_actions.empty?
+          hash_actions.each do |key, value|
+            actions_dup.push({ key => value })
+          end
+        end
+
+        show_api_index = nil
+
+        actions_dup.each_with_index do |action, index|
+          action_name = action.is_a?(Hash) ? action.keys[0] : action
+
+          if action_name.to_s == "show"
+            show_api_index = index
+
+            break
+          end
+        end
+
+        # 把show_api移到最后
+        if show_api_index
+          actions_dup.delete_at(show_api_index)
+          actions_dup << actions[show_api_index]
+        end
+
+        actions_dup.map { |action| action.is_a?(Hash) ? action : { action => {} }  }.select do |action|
+          action_name = action.keys[0]
+
+          if action_name.in?([:index, :read_options])
+            false
+          elsif action_name.in?([:show, :create, :update, :destroy])
+            true
+          else action_name.match?(/_resource$/)
+            true
           end
         end
       end
@@ -249,13 +375,11 @@ module CustomGrape
       end
 
       def show_api(options = {})
-        route_param find_by_key do
-          desc "#{resource_class.model_name.human}详情", {
-            summary: "#{resource_class.model_name.human}详情",
-            success: resource_entity
-          }.merge(options)
-          get do; show_api; end
-        end
+        desc "#{resource_class.model_name.human}详情", {
+          summary: "#{resource_class.model_name.human}详情",
+          success: resource_entity
+        }.merge(options)
+        get do; show_api; end
       end
 
       def create_api(options = {})
@@ -268,24 +392,20 @@ module CustomGrape
       end
 
       def update_api(options = {})
-        route_param find_by_key do
-          desc "更新#{resource_class.model_name.human}", {
-            summary: "更新#{resource_class.model_name.human}",
-            success: resource_entity
-          }.merge(options)
-          params do; use :update_params; end
-          put do; update_api; end
-        end
+        desc "更新#{resource_class.model_name.human}", {
+          summary: "更新#{resource_class.model_name.human}",
+          success: resource_entity
+        }.merge(options)
+        params do; use :update_params; end
+        put do; update_api; end
       end
 
       def destroy_api(options = {})
-        route_param find_by_key do
-          desc "删除#{resource_class.model_name.human}", {
-            summary: "删除#{resource_class.model_name.human}",
-            success: CustomGrape::Entities::SuccessfulResult
-          }.merge(options)
-          delete do; destroy_api; end
-        end
+        desc "删除#{resource_class.model_name.human}", {
+          summary: "删除#{resource_class.model_name.human}",
+          success: CustomGrape::Entities::SuccessfulResult
+        }.merge(options)
+        delete do; destroy_api; end
       end
     end
 

@@ -93,7 +93,7 @@ module CustomGrape
       if model.attachment_reflections.keys.include?(attribute.to_s)
         type_is_array = model.attachment_reflections[attribute.to_s].is_a? ActiveStorage::Reflection::HasManyAttachedReflection
         if type_is_array
-          options[:documentation][:types] = [Array[String], Array[Hash]]
+          options[:documentation][:type] = Array[String, Hash]
         else
           options[:documentation][:type] = String
         end
