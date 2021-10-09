@@ -137,7 +137,7 @@ module CustomGrape
     end
 
     def resource_params
-      ActionController::Parameters.new(params).permit(permitted_params)
+      @resource_params ||= ActionController::Parameters.new(params).permit(permitted_params)
     end
 
     def route_setting_entity
