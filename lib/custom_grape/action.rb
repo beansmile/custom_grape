@@ -99,12 +99,14 @@ module CustomGrape
             params :read_options_params do; end
             params :create_params do; end
             params :update_params do; end
-            apis_member_actions.each do |action|
-              action_name = action.keys[0]
+            apis_member_actions.each do |hash|
+              hash_dup = hash.dup
+              action_name = hash_dup.delete(:action)
+              via = hash_dup.delete(:via)
 
               next if action_name.in?([:show, :create, :update, :destroy])
 
-              params "#{action_name}_params".to_sym do; end
+              params "#{via}_#{action_name}_member_params".to_sym do; end
             end
 
             define_method :resource_class do
@@ -185,14 +187,15 @@ module CustomGrape
             def update_api; authorize_and_update_resource; end
             def destroy_api; authorize_and_destroy_resource; end
 
-            apis_member_actions.each do |action|
-              action_name = action.keys[0]
+            apis_member_actions.each do |hash|
+              hash_dup = hash.dup
+              action_name = hash_dup.delete(:action)
+              via = hash_dup.delete(:via)
+              method_name = hash_dup.delete(:method) || action_name
 
               next if action_name.in?([:show, :create, :update, :destroy])
 
-              method_name = action_name.to_s.split("_")[1..-2].join("_")
-
-              define_method "#{action_name}_api" do |options = {}|
+              define_method "#{via}_#{action_name}_member_api" do |options = {}|
                 options.reverse_merge!({ auth_action: auth_action(action_name) })
 
                 if resource_params.present?
@@ -208,43 +211,41 @@ module CustomGrape
 
           default_tags = ["Model #{resource_class.model_name.human}: #{resource_class.name.underscore.pluralize}"]
 
-          collection_actions(actions).each do |action|
-            action_name = action.keys[0]
-            api_options = action.values[0]
+          collection_actions(actions).each do |hash|
+            hash_dup = hash.dup
+            action_name = hash_dup.delete(:action)
 
-            api_options[:tags] = (api_options[:tags] || []) + default_tags
+            hash_dup[:tags] = (hash_dup[:tags] || []) + default_tags
 
-            send("#{action_name}_api", api_options.reverse_merge(options))
+            send("#{action_name}_api", hash_dup.reverse_merge(options))
           end
 
-          apis_member_actions.each do |action|
-            action_name = action.keys[0]
-            api_options = action.values[0]
+          apis_member_actions.each do |hash|
+            hash_dup = hash.dup
+            action_name = hash_dup.delete(:action)
+            via = hash_dup.delete(:via)
 
-            api_options[:tags] = (api_options[:tags] || []) + default_tags
+            hash_dup[:tags] = (hash_dup[:tags] || []) + default_tags
 
             if action_name.in?([:show, :create, :update, :destroy])
               if action_name == :create || apis_singleton
-                send("#{action_name}_api", api_options.reverse_merge(options))
+                send("#{action_name}_api", hash_dup.reverse_merge(options))
               else
                 route_param find_by_key do
-                  send("#{action_name}_api", api_options.reverse_merge(options))
+                  send("#{action_name}_api", hash_dup.reverse_merge(options))
                 end
               end
             else
-              array = action_name.to_s.split("_")
-              request_method = array.shift
-              api_name = array[0..-2].join("_")
-              api_route = apis_singleton ? api_name : ":#{find_by_key}/#{api_name}"
-              response_resource_entity = request_method != "delete"
+              api_route = apis_singleton ? action_name : ":#{find_by_key}/#{action_name}"
+              response_resource_entity = via.to_s != "delete"
 
-              desc "#{resource_class.model_name.human} #{api_name}", {
-                summary: "#{resource_class.model_name.human} #{api_name}",
+              desc "#{resource_class.model_name.human} #{action_name}", {
+                summary: "#{resource_class.model_name.human} #{action_name}",
                 success: response_resource_entity ? resource_entity : CustomGrape::Entities::SuccessfulResult
-              }.merge(api_options.reverse_merge(options))
-              params do; use "#{action_name}_params".to_sym; end
-              route request_method, api_route do
-                send("#{action_name}_api", { response_resource_entity: response_resource_entity })
+              }.merge(hash_dup.reverse_merge(options))
+              params do; use "#{via}_#{action_name}_member_params".to_sym; end
+              route via, api_route do
+                send("#{via}_#{action_name}_member_api", { response_resource_entity: response_resource_entity })
               end
             end
           end
@@ -254,33 +255,33 @@ module CustomGrape
       def collection_actions(actions)
         actions_dup = actions.dup
 
-        hash_actions = actions_dup.extract_options!
-
-        unless hash_actions.empty?
-          hash_actions.each do |key, value|
-            actions_dup.push({ key => value })
+        actions_dup = actions_dup.map do |key|
+          if key.is_a?(Hash)
+            key
+          else
+            { action: key }
           end
         end
 
-        actions_dup.map { |action| action.is_a?(Hash) ? action : { action => {} }  }.select { |action| action.keys[0].in?([:index, :read_options]) }
+        actions_dup.select { |hash| hash[:action].in?([:index, :read_options]) }
       end
 
       def member_actions(actions)
         actions_dup = actions.dup
 
-        # 支持 apis [:index, show: {}, create: {}], {}
-        hash_actions = actions_dup.extract_options!
-
-        unless hash_actions.empty?
-          hash_actions.each do |key, value|
-            actions_dup.push({ key => value })
+        # 支持 apis [:index, { action: :show }, { action: :create }], {}
+        actions_dup = actions_dup.map do |key|
+          if key.is_a?(Hash)
+            key
+          else
+            { action: key }
           end
         end
 
         show_api_index = nil
 
-        actions_dup.each_with_index do |action, index|
-          action_name = action.is_a?(Hash) ? action.keys[0] : action
+        actions_dup.each_with_index do |hash, index|
+          action_name = hash[:action]
 
           if action_name.to_s == "show"
             show_api_index = index
@@ -291,18 +292,20 @@ module CustomGrape
 
         # 把show_api移到最后
         if show_api_index
-          actions_dup.delete_at(show_api_index)
-          actions_dup << actions[show_api_index]
+          actions_dup << actions_dup.delete_at(show_api_index)
         end
 
-        actions_dup.map { |action| action.is_a?(Hash) ? action : { action => {} }  }.select do |action|
-          action_name = action.keys[0]
+        actions_dup.select do |hash|
+          action_name = hash[:action]
 
           if action_name.in?([:index, :read_options])
             false
           elsif action_name.in?([:show, :create, :update, :destroy])
             true
-          else action_name.match?(/_resource$/)
+          else hash[:on].blank? || hash[:on].to_s == "member"
+            hash[:via] ||= :put
+            hash.delete(:on)
+
             true
           end
         end

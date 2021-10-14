@@ -172,20 +172,8 @@ module CustomGrape
     def auth_action(action)
       if action.in?([:index, :show])
         :read
-      elsif action.in?([:create, :update, :destroy, :read_options])
-        action
       else
-        array = action.to_s.split("_")
-        request_method = array.shift
-
-        ability_action = {
-          get: :read,
-          put: :update,
-          post: :create,
-          delete: :destroy
-        }[request_method.to_sym]
-
-        "#{ability_action}_#{array[0..-2].join("_")}".to_sym
+        action
       end
     end
 
