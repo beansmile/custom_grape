@@ -192,16 +192,10 @@ module CustomGrape
               action_name = hash_dup.delete(:action)
               via = hash_dup.delete(:via)
               method_name = hash_dup.delete(:method) || action_name
-              auth_action = hash_dup.delete(:auth_action) || action_name
 
               next if action_name.in?([:show, :create, :update, :destroy])
 
-              define_method "#{via}_#{action_name}_member_api" do
-                options.reverse_merge!({
-                  auth_action: auth_action,
-                  response_resource_entity: via.to_s != "delete"
-                })
-
+              define_method "#{via}_#{action_name}_member_api" do |options = {}|
                 if resource_params.present?
                   authorize_and_run_member_action(method_name, options, resource_params)
                 else
@@ -228,6 +222,7 @@ module CustomGrape
             hash_dup = hash.dup
             action_name = hash_dup.delete(:action)
             via = hash_dup.delete(:via)
+            auth_action = hash_dup.delete(:auth_action) || action_name
 
             hash_dup[:tags] = (hash_dup[:tags] || []) + default_tags
 
@@ -245,11 +240,16 @@ module CustomGrape
 
               desc "#{resource_class.model_name.human} #{action_name}", {
                 summary: "#{resource_class.model_name.human} #{action_name}",
-                success: via.to_s != "delete" ? resource_entity : CustomGrape::Entities::SuccessfulResult
+                success: response_resource_entity ? resource_entity : CustomGrape::Entities::SuccessfulResult
               }.merge(hash_dup.reverse_merge(options))
               params do; use "#{via}_#{action_name}_member_params".to_sym; end
               route via, api_route do
-                send("#{via}_#{action_name}_member_api")
+                options.reverse_merge!({
+                  auth_action: auth_action,
+                  response_resource_entity: response_resource_entity
+                })
+
+                send("#{via}_#{action_name}_member_api", options)
               end
             end
           end
