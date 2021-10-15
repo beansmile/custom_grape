@@ -169,14 +169,6 @@ module CustomGrape
       @resource_class ||= (request.env["REQUEST_PATH"] || request.path).split("/")[3].classify.constantize
     end
 
-    def auth_action(action)
-      if action.in?([:index, :show])
-        :read
-      else
-        action
-      end
-    end
-
     def permitted_params
       # clone一份数据，避免 conver 后改变原来的值出现下面error
       # TypeError (no implicit conversion from nil to integer)
