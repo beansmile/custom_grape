@@ -195,11 +195,11 @@ module CustomGrape
 
               next if action_name.in?([:show, :create, :update, :destroy])
 
-              define_method "#{via}_#{action_name}_member_api" do |options = {}|
+              define_method "#{via}_#{action_name}_member_api" do |opts = {}|
                 if resource_params.present?
-                  authorize_and_run_member_action(method_name, options, resource_params)
+                  authorize_and_run_member_action(method_name, opts, resource_params)
                 else
-                  authorize_and_run_member_action(method_name, options)
+                  authorize_and_run_member_action(method_name, opts)
                 end
               end
             end
@@ -244,12 +244,12 @@ module CustomGrape
               }.merge(hash_dup.reverse_merge(options))
               params do; use "#{via}_#{action_name}_member_params".to_sym; end
               route via, api_route do
-                options.reverse_merge!({
+                opts = {
                   auth_action: auth_action,
                   response_resource_entity: response_resource_entity
-                })
+                }
 
-                send("#{via}_#{action_name}_member_api", options)
+                send("#{via}_#{action_name}_member_api", opts)
               end
             end
           end
