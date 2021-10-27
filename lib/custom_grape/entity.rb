@@ -1,34 +1,79 @@
 module CustomGrape
   class Entity < Grape::Entity
-    def self.expose_attached(attribute, options = {})
-      expose attribute, { using: CustomGrape::Entities::ActiveStorageAttached }.reverse_merge(options) do |resource|
-        attached = resource.send(attribute)
+    def self.inherited(subclass)
+      CustomGrape::Includes.build(subclass.name)
 
-        if attached.is_a?(ActiveStorage::Attached::One)
-          attached.attached? ? attached : nil
-        else
-          attached
+      super
+    end
+
+    def self.custom_expose(*args, &block)
+      options = args.last.is_a?(Hash) ? args.pop : {}
+      options = merge_options(options)
+
+      raise ArgumentError, "只能传一个属性" if args.size > 1
+
+      attribute = args[0]
+      options[:documentation] ||= {}
+
+      begin
+        if model = fetch_model
+          set_desc(model, attribute, options) unless options[:documentation][:desc]
+          set_type(model, attribute, options) unless options[:documentation][:type]
+          set_values(model, attribute, options) unless options[:documentation][:values]
+          set_coerce_with(model, attribute, options) unless options[:documentation][:coerce_with]
+
+          custom_grape_includes_object = CustomGrape::Includes.fetch(name)
+
+          if reflection = model.reflect_on_association(attribute)
+            if reflection.class_name == "ActiveStorage::Attachment"
+              options[:using] ||= active_storage_attached_entity_name
+              custom_grape_includes_object.includes = custom_grape_includes_object.includes | [{ attribute => :blob }]
+            else
+              options[:documentation][:is_array] = true if reflection.is_a?(ActiveRecord::Reflection::HasManyReflection)
+
+              options[:using] ||= "#{entity_namespace}::Simple#{reflection.klass}"
+
+              custom_grape_includes_object.children_includes[attribute] = {
+                entity_name: options[:using].is_a?(String) ? options[:using] : options[:using].name,
+              }
+            end
+          elsif reflection = model.reflect_on_attachment(attribute)
+            options[:using] ||= active_storage_attached_entity_name
+
+            if reflection.is_a?(ActiveStorage::Reflection::HasManyAttachedReflection)
+              options[:documentation][:is_array] = true
+              array = [{ "#{attribute}_attachments".to_sym => :blob }]
+            else
+              array = [{ "#{attribute}_attachment".to_sym => :blob }]
+            end
+
+            custom_grape_includes_object.includes = custom_grape_includes_object.includes | array
+          end
         end
+      rescue ActiveRecord::NoDatabaseError, ActiveRecord::StatementInvalid
+        # do nothing
+      end
+
+      if options[:using] == active_storage_attached_entity_name && !block_given?
+        expose(attribute, options) do |resource|
+          attached = resource.send(attribute)
+
+          if attached.is_a?(ActiveStorage::Attached::One)
+            attached.attached? ? attached : nil
+          else
+            attached
+          end
+        end
+      else
+        expose(attribute, options, &block)
       end
     end
 
-    class_attribute :documentation_of_params
-    self.documentation_of_params ||= {}
-
-    # 排除 documentation 里面的 example，否则作为 params 会报错
-    def self.documentation_extract(*attrs)
-      documentation.dup.extract!(*attrs).merge(documentation_of_params.dup.extract!(*attrs)).map do |k, v|
-        [k, v.except(:example)]
-      end.to_h
+    def self.entity_namespace
+      self.to_s.split("::")[0..1].join("::")
     end
 
-    def self.doc_for_params(*args, &block)
-      options = merge_options(args.last.is_a?(Hash) ? args.pop : {})
-
-      self.documentation_of_params[args.first] = guess_type(args.first, options) if options[:documentation]
-    end
-
-    def self.guess_model
+    def self.fetch_model
       begin
         model_name = self.to_s.split("::")[2..-1].join("::").singularize
 
@@ -54,16 +99,7 @@ module CustomGrape
       model
     end
 
-    def self.guess_desc(attribute, options)
-      # 如果没有 documentation.type，尝试根据 I18n 来设置文档
-      return if options.dig(:documentation, :desc)
-
-      model = guess_model
-
-      return options if model.nil?
-
-      options[:documentation] ||= {}
-
+    def self.set_desc(model, attribute, options)
       column = model.columns_hash[attribute.to_s]
 
       if column
@@ -76,73 +112,54 @@ module CustomGrape
       elsif model.instance_methods.include?(attribute)
         options[:documentation][:desc] = model.human_attribute_name(attribute)
       end
-
-      options
     end
 
-    def self.guess_type(attribute, options)
-      # 如果没有 documentation.type，尝试根据数据库的类型来设置文档
-      return if options.dig(:documentation, :type)
+    def self.set_type(model, attribute, options)
+      options[:documentation][:type] = if reflection = model.reflect_on_attachment(attribute)
+                                         reflection.is_a?(ActiveStorage::Reflection::HasManyAttachedReflection) ? Array[String, Hash] : String
+                                         # enum 类型在数据库是整型，但是暴露出来是 string
+                                       elsif model.defined_enums[attribute.to_s]
+                                         String
+                                       else
+                                         column = model.columns_hash[attribute.to_s]
 
-      model = guess_model
+                                         {
+                                           integer: Integer,
+                                           bigint: Integer,
+                                           float: Float,
+                                           decimal: BigDecimal,
+                                           numeric: Numeric,
+                                           datetime: DateTime,
+                                           time: Time,
+                                           date: Date,
+                                           boolean: Grape::API::Boolean
+                                         }[column&.type] || String
+                                       end
+    end
 
-      return options if model.nil?
+    def self.set_values(model, attribute, options)
+      if model.defined_enums[attribute.to_s]
+        options[:documentation][:values] = model.send(attribute.to_s.pluralize).keys + [""]
+      end
+    end
 
-      options[:documentation] ||= {}
+    def self.set_coerce_with(model, attribute, options)
+      return unless model.reflect_on_association(attribute)
 
-      if model.attachment_reflections.keys.include?(attribute.to_s)
-        type_is_array = model.attachment_reflections[attribute.to_s].is_a? ActiveStorage::Reflection::HasManyAttachedReflection
-        if type_is_array
-          options[:documentation][:type] = Array[String, Hash]
-        else
-          options[:documentation][:type] = String
+      options[:documentation][:coerce_with] = ->(val) {
+        case val
+        when String
+          val
+        when Hash
+          val[:signed_id]
+        when Array
+          val.map { |v| v.is_a?(String) ? v : v[:signed_id] }
         end
-        options[:documentation][:coerce_with] = ->(val) {
-          case val
-          when String
-            val
-          when Hash
-            val[:signed_id]
-          when Array
-            val.map { |v| v.is_a?(String) ? v : v[:signed_id] }
-          end
-        }
-      # enum 类型在数据库是整型，但是暴露出来是 string
-      elsif model.defined_enums[attribute.to_s]
-        options[:documentation][:values] = model.send(attribute.to_s.pluralize).keys
-        options[:documentation][:type] = String
-      elsif column = model.columns_hash[attribute.to_s]
-        options[:documentation][:type] = {
-          primary_key: String,
-          string: String,
-          text: String,
-          integer: Integer,
-          bigint: Integer,
-          float: Float,
-          decimal: BigDecimal,
-          numeric: Numeric,
-          datetime: DateTime,
-          time: Time,
-          date: Date,
-          binary: String,
-          boolean: Grape::API::Boolean
-          }[column.type]
-      else
-        options[:documentation][:type] = String
-      end
-
-      options
+      }
     end
 
-    def self.build_exposure_for_attribute(attribute, nesting_stack, options, block)
-      begin
-        guess_desc(attribute, options)
-        guess_type(attribute, options)
-      rescue => e
-        # 暂时先什么都不处理
-      end
-
-      super(attribute, nesting_stack, options, block)
+    def self.active_storage_attached_entity_name
+      raise NotImplementedError
     end
   end
 end

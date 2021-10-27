@@ -4,11 +4,31 @@ module CustomGrape
     @@entity_includes_cache = {}
 
     def default_order
-      @default_order ||= "id desc"
+      @default_order ||= "#{resource_class.table_name}.id DESC"
+    end
+
+    def route_options
+      @route_options ||= options[:route_options] || {}
+    end
+
+    def parent_association_chain
+      @parent_association_chain ||= route_options[:association_chain][-2] || {}
+    end
+
+    def parent_class
+      @parent_class ||= parent_association_chain[:class_name]
+    end
+
+    def parent
+      @parent ||= parent_class&.find_by!("#{parent_association_chain[:find_by_key]}" => parent_association_chain[:param])
+    end
+
+    def resource_class
+      @resource_class ||= route_options[:class_name]&.constantize
     end
 
     def end_of_association_chain
-      @end_of_association_chain ||= resource_class
+      @end_of_association_chain ||= parent ? parent.send(resource_class.name.tableize) : resource_class
     end
 
     def collection
@@ -17,111 +37,34 @@ module CustomGrape
       search = end_of_association_chain.accessible_by(current_ability).ransack(ransack_params)
       search.sorts = "#{params[:order].keys.first} #{params[:order].values.first}" if params[:order].present?
 
-      @collection = search.result(distinct: true).includes(includes).order(default_order).order("id DESC")
+      @collection = search.result(distinct: true).includes(includes).order(default_order).order("#{resource_class.table_name}.id DESC")
     end
 
     def resource
-      @resource ||= resource_class.includes(resource_includes).find_by!("#{find_by_key}" => params[find_by_key])
-    end
-
-    def find_by_key
-      @find_by_key ||= :id
-    end
-
-    def authorize_and_response_collection
-      authorize! :read, auth_resource_class
-
-      response_collection
-    end
-
-    def authorize_and_response_read_options
-      authorize! :read_options, auth_resource_class
-
-      @collection = end_of_association_chain.accessible_by(current_ability, :read_options).ransack(ransack_params).result(distinct: true).includes(read_options_includes).order(default_order).order("id DESC")
-
-      options = { with: route_setting_entity }
-
-      present present_collection, options
+      @resource ||= end_of_association_chain.includes(includes).find_by!("#{route_options[:find_by_key]}" => params[route_options[:param]])
     end
 
     def present_collection
       @present_collection ||= params[:page] == 0 ? collection : paginate(collection)
     end
 
-    def collection_present_additional_options
-      method_name = "#{collection_entity.name.split("::").last.underscore}_present_additional_options"
-
-      respond_to?(method_name) ? send(method_name) : {}
+    def response_resource
+      present resource, with: route_options[:entity]
     end
 
     def response_collection
-      options = { with: collection_entity }
-      options["#{resource_class.name.underscore}_ids".to_sym] = present_collection.map(&:id)
-      options.reverse_merge!(collection_present_additional_options)
-
-      present present_collection, options
+      present present_collection, { with: route_options[:entity] }
     end
 
-    def authorize_and_response_resource
-      authorize! :read, auth_resource
-
-      response_resource
-    end
-
-    def response_resource
-      present resource, with: resource_entity
-    end
-
-    def authorize_and_create_resource(options = {})
-      options.reverse_merge!({
-        authorize: true
+    def run_member_action(action, api_options = {}, *data)
+      api_options.reverse_merge!({
+        auth_action: route_options[:auth_action] || action
       })
 
-      create_resource(options)
-    end
-
-    def create_resource(options = {})
-      options.reverse_merge!({
-        auth_action: :create
-      })
-
-      build_resource
-      run_member_action(:save, options)
-    end
-
-    def authorize_and_update_resource(options = {})
-      authorize_and_run_member_action(:update, options, resource_params)
-    end
-
-    def update_resource(options = {})
-      run_member_action(:update, options, resource_params)
-    end
-
-    def authorize_and_destroy_resource(options = {})
-      authorize_and_run_member_action(:destroy, options.reverse_merge(response_resource_entity: false))
-    end
-
-    def authorize_and_run_member_action(action, options = {}, *data)
-      options.reverse_merge!({
-        authorize: true
-      })
-
-      run_member_action(action, options, *data)
-    end
-
-    def run_member_action(action, options = {}, *data)
-      options.reverse_merge!({
-        authorize: false,
-        auth_action: action,
-        response_resource_entity: true
-      })
-
-      if options[:authorize]
-        authorize! options[:auth_action], auth_resource
-      end
+      authorize! api_options[:auth_action], resource
 
       if data.present? ? resource.send(action, *data) : resource.send(action)
-        options[:response_resource_entity] ? response_resource : response_success
+        response_resource
       else
         response_record_error(resource)
       end
@@ -138,35 +81,6 @@ module CustomGrape
 
     def resource_params
       @resource_params ||= ActionController::Parameters.new(params).permit(permitted_params)
-    end
-
-    def route_setting_entity
-      @route_setting_entity ||= route.settings[:description][:entity] || route.settings[:description][:success]
-    end
-
-    def collection_entity
-      @collection_entity ||= route_setting_entity || "#{entity_namespace_name}::#{resource_class}".constantize
-    end
-
-    def resource_entity
-      @resource_entity ||= if route_setting_entity
-                             route_setting_entity
-                           else
-                             begin
-                               "#{entity_namespace_name}::#{resource_class}Detail".constantize
-                             rescue NameError => e
-                               "#{entity_namespace_name}::#{resource_class}".constantize
-                             end
-                           end
-    end
-
-    def entity_namespace_name
-      raise "请重写entity_namespace_name方法"
-    end
-
-    def resource_class
-      # request.env["REQUEST_PATH"] 返回类似/app_api/v1/products的字符串
-      @resource_class ||= (request.env["REQUEST_PATH"] || request.path).split("/")[3].classify.constantize
     end
 
     def permitted_params
@@ -224,15 +138,19 @@ module CustomGrape
 
     # 如果要处理 n + 1 问题，需重写该方法
     def includes
-      fetch_entity_includes(collection_entity, resource_class)
+      fetch_entity_includes(route_options[:entity])
     end
 
-    def read_options_includes
-      fetch_entity_includes(route_setting_entity, resource_class)
-    end
+    def fetch_entity_includes(entity)
+      includes_cache_key = "grape_entity_includes/#{entity.name.underscore.gsub("/", "_")}".to_sym
+      includes_cache = @@entity_includes_cache[includes_cache_key]
 
-    def resource_includes
-      fetch_entity_includes(resource_entity, resource_class)
+      return includes_cache if includes_cache
+
+      data = Includes.fetch(entity.name)&.fetch_includes || []
+      @@entity_includes_cache[includes_cache_key] = data
+
+      data
     end
 
     def build_resource
@@ -266,88 +184,8 @@ module CustomGrape
       []
     end
 
-    def guess_includes(entity, model)
-      entity.root_exposures.inject([]) do |array, exposure|
-        if exposure.respond_to?(:using_class)
-          if exposure.using_class == Entities::ActiveStorageAttached
-            if attachment = model.reflect_on_all_attachments.detect { |attachment| attachment.name == exposure.attribute }
-              if attachment.is_a?(ActiveStorage::Reflection::HasOneAttachedReflection)
-                array << { "#{attachment.name}_attachment".to_sym => [:blob] }
-              else
-                array << { "#{attachment.name}_attachments".to_sym => [:blob] }
-              end
-            end
-          elsif association = model.reflect_on_all_associations.detect { |association| association.name == exposure.attribute }
-            array << { association.name => fetch_entity_includes(exposure.using_class, association.klass) }
-          end
-          # 处理ActsAsTaggableOn N + 1
-        elsif defined?(ActsAsTaggableOn) && resource_class.respond_to?(:tag_types) && exposure.attribute.to_s.match(/_list$/)
-          column_name = exposure.key.to_s.split("_")[0..-2].join("_").pluralize.to_sym
-
-          array << column_name if resource_class.tag_types.include?(column_name)
-        end
-
-        array
-      end
-    end
-
-    def additional_includes(entity)
-      # simple_user_additional_includes
-      # user_additional_includes
-      # user_detail_additional_includes
-      method = "#{entity.name.split("::")[2..-1].join("_").underscore}_additional_includes"
-
-      respond_to?(method) ? send(method) : []
-    end
-
-    def except_includes(entity)
-      # simple_user_except_includes
-      # user_except_includes
-      # user_detail_except_includes
-      method = "#{entity.name.split("::")[2..-1].join("_").underscore}_except_includes"
-
-      respond_to?(method) ? send(method) : []
-    end
-
-    def fetch_entity_includes(entity, model)
-      # app_api_entities_user_includes
-      # app_api_entities_user_detail_includes
-      # app_api_entities_simple_user_includes
-      includes_cache_key = "#{entity.name.underscore.gsub("/", "_")}_includes".to_sym
-      includes_cache = @@entity_includes_cache[includes_cache_key]
-
-      return includes_cache if use_cache? && includes_cache.present?
-
-      # user_includes
-      # user_detail_includes
-      # simple_user_includes
-      includes_method = "#{entity.name.split("::").last.underscore}_includes"
-
-      data = if respond_to?(includes_method)
-               send(includes_method)
-             else
-               guess_includes(entity, model) - except_includes(entity) + additional_includes(entity)
-             end
-
-      @@entity_includes_cache[includes_cache_key] = data
-
-      data
-    end
-
     def use_cache?
       Rails.env.production? || Rails.env.staging?
-    end
-
-    def auth_resource
-      @auth_resource ||= resource
-    end
-
-    def auth_resource_class
-      @auth_resource_class ||= resource_class
-    end
-
-    def response_success(message = "OK", options = {})
-      { code: 200, message: message }.merge(options)
     end
 
     def response_error(message = "error", code = 400)

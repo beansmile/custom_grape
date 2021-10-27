@@ -1,73 +1,70 @@
+## Install
+
+```
+gem "custom_grape", github: "beansmile/custom_grape", branch: "v3"
+```
+
+```
+rails g custom_grape:install
+```
+
+`config/initializers` 目录下文件加入以下代码
+
+```
+class Grape::API::Instance
+  extend CustomGrape::Custom::DSLMethods
+end
+```
+
 ## Usage
 
-* 一般使用场景以 `app_api/v1/products.rb` 来举例，hash参数不需要填写，默认参数会根据文件名生成，以下把生成的参数都列出来
+### Grape基础用法
+
+以下 `custom_index`、`custom_show`、`custom_create`、`custom_update`、`custom_destroy` 在 `rails g custom_grape:install` 命令生成文件里，可根据项目需求更改或新增
 
 ```
-apis :index, :show, :create, :update, :destroy, {
-  # 是否跳过用户登录验证，默认为false
-  skip_authentication: false,
-  # 如需通过slug查找对象则把id替换成slug
-  find_by_key: :id
-  resource_class: Product,
-  resource_entity: AppAPI::Entities::ProductDetail,
-  collection_entity: AppAPI::Entities::Product，
-  # 如不填则生成 products namespace，如填写mine，则生成 mine/products namespace
-  namespace: nil,
-  # 如填写 :product_category 则生成 product_categories/:product_category_id/products namespace，可调用 parent 方法获取 product_category
-  belongs_to: nil,
-  # 不填写则会根据belongs_to配置生成 product_category_id，如填写则 :slug 则生成 product_categories/:slug/products
-  belongs_to_find_by_key: nil
-}
-```
+class AppAPI::V1::ProductCategories < API
+  include Grape::Kaminari
 
-* 如需要重写API，可重定义action名+_api覆盖（如重写index则在helpers里创建index_api）
-
-```
-apis :index, :show, :create, :update, :destroy do
-  helpers do
-    def index_api
-      # 重写内容
+  custom_namespace "product_categories" do
+    params do
+      optional :name_cont
     end
-  end
-end
-```
+    custom_index
 
-* index API会自动根据index_params过滤掉没有定义的查找参数（ransack太自由，这里加白名单限制）
-
-```
-apis :index do
-  helpers do
-    params :index_params do
-      optional :title_eq
+    params do
+      requires :name
     end
-  end
-end
-```
+    custom_create
 
-* create和update API会根据自动create_params和update_params生成permitted_params（需定义好type，尤其是Array[JSON]这种数据类型）
+    custom_route_param :id do
+      custom_show
 
-```
-apis :create, :update do
-  helpers do
-    params :create_params do
-      optional :name, type: String
-      optional :tag_ids: type: Array[Integer]
-      optional :comment_attributes, type: Array[JSON] do
-        optional :content, type: String
+      params do
+        requires :name
       end
+      custom_update
+
+      custom_destroy
     end
   end
 end
 ```
 
-* 可为API单独配置参数
+### Grape entity基础用法
 
 ```
-apis [
-  create: { tags: ["create"] },
-  :update
-] do
-  ...
+module AppAPI::Entities
+  class SimpleProductCategory < ::Entities::Model
+    custom_expose :name # 用custom_expose，会自动填充属性的类型，描述
+  end
+
+  class ProductCategory < SimpleProductCategory
+    custom_expose :image # 使用custom_expose，会自动判断是否ActiveStorage，是的话自动使用对应的entity
+    custom_expose :products # 使用custom_expose，会自动判断是否关联关系， 是的话自动使用对应的Simple entity，可使用using参数覆盖
+  end
+
+  class ProductCategoryDetail < ProductCategory
+  end
 end
 ```
-
