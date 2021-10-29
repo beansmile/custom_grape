@@ -91,7 +91,7 @@ module CustomGrape
       includes_cache_key = "grape_entity_includes/#{entity.name.underscore.gsub("/", "_")}".to_sym
       includes_cache = @@entity_includes_cache[includes_cache_key]
 
-      return includes_cache if includes_cache
+      return includes_cache if use_cache? && includes_cache.present?
 
       data = Includes.fetch(entity.name)&.fetch_includes || []
       @@entity_includes_cache[includes_cache_key] = data
@@ -134,6 +134,10 @@ module CustomGrape
 
     def response_record_error(object)
       response_error(object.errors.full_messages.join(","))
+    end
+
+    def use_cache?
+      Rails.env.production? || Rails.env.staging?
     end
   end
 end

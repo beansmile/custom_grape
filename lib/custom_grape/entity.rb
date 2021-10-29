@@ -8,6 +8,10 @@ module CustomGrape
 
     def self.custom_expose(*args, &block)
       options = args.last.is_a?(Hash) ? args.pop : {}
+      custom_options = {
+        includes: options.delete(:includes)
+      }
+
       options = merge_options(options)
 
       raise ArgumentError, "只能传一个属性" if args.size > 1
@@ -24,18 +28,22 @@ module CustomGrape
 
           custom_grape_includes_object = CustomGrape::Includes.fetch(name)
 
+          custom_grape_includes_object.includes << custom_options[:includes] if custom_options[:includes]
+
           if reflection = model.reflect_on_association(attribute)
             if reflection.class_name == "ActiveStorage::Attachment"
               options[:using] ||= active_storage_attached_entity_name
-              custom_grape_includes_object.includes = custom_grape_includes_object.includes | [{ attribute => :blob }]
+              custom_grape_includes_object.includes = custom_grape_includes_object.includes | [{ attribute => :blob }] unless custom_options[:includes]
             else
               options[:documentation][:is_array] = true if reflection.is_a?(ActiveRecord::Reflection::HasManyReflection)
 
               options[:using] ||= "#{entity_namespace}::Simple#{reflection.klass}"
 
-              custom_grape_includes_object.children_includes[attribute] = {
-                entity_name: options[:using].is_a?(String) ? options[:using] : options[:using].name,
-              }
+              unless custom_options[:includes]
+                custom_grape_includes_object.children_includes[attribute] = {
+                  entity_name: options[:using].is_a?(String) ? options[:using] : options[:using].name,
+                }
+              end
             end
           elsif reflection = model.reflect_on_attachment(attribute)
             options[:using] ||= active_storage_attached_entity_name
@@ -47,7 +55,7 @@ module CustomGrape
               array = [{ "#{attribute}_attachment".to_sym => :blob }]
             end
 
-            custom_grape_includes_object.includes = custom_grape_includes_object.includes | array
+            custom_grape_includes_object.includes = custom_grape_includes_object.includes | array unless custom_options[:includes]
           end
         end
       rescue ActiveRecord::NoDatabaseError, ActiveRecord::StatementInvalid
