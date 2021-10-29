@@ -80,63 +80,9 @@ module CustomGrape
     end
 
     def resource_params
-      @resource_params ||= ActionController::Parameters.new(params).permit(permitted_params)
+      @resource_params ||= declared(params)
     end
 
-    def permitted_params
-      # clone一份数据，避免 conver 后改变原来的值出现下面error
-      # TypeError (no implicit conversion from nil to integer)
-      # 原因：conver后从 [:title, :images] 变成 [:title, {:images=>[]}]
-      # 导致 data.index("images") 为nil
-      declared_params = route.settings[:declared_params].deep_dup
-
-      description_params = route.settings[:description][:params] || {}
-
-      description_params.select do |key, value|
-        if value[:type].blank? || value[:type] == "[JSON]"
-          false
-        elsif value[:type].match(/\[/)
-          true
-          # key可能包含特殊字符，例如方括号："shipping_categories[shipping_methods][calculator]"，此时需用Regexp.escape方法
-        elsif value[:type] == "JSON" && !description_params.any? { |k, _| k.match?(/^#{Regexp.escape(key)}\[/) }
-          true
-        elsif value[:type] == "File"
-          true
-        else
-          false
-        end
-      end.each do |key, value|
-        key_array = key.gsub("[", " ").gsub("]", " ").split(" ")
-
-        declared_params = conver_declared_params(declared_params, key_array, value)
-      end
-
-      declared_params
-    end
-
-    def conver_declared_params(data, key_array, value)
-      key = key_array.shift.to_sym
-
-      if key_array == []
-        data[data.index(key)] = if value[:type] == "JSON" || value[:type] == "File"
-                                  { key => {} }
-                                else
-                                  { key => [] }
-                                end
-      else
-        key_array.each do |k|
-          index = data.index { |value| value.is_a?(Hash) && value[key] }
-
-          convered_data = conver_declared_params(data[index][key], key_array, value)
-
-          data[index][key] = convered_data if key_array == []
-        end
-      end
-
-      data
-    end
-
-    # 如果要处理 n + 1 问题，需重写该方法
     def includes
       fetch_entity_includes(route_options[:entity])
     end
@@ -158,9 +104,7 @@ module CustomGrape
     end
 
     def ransack_params
-      documentation_filter_params = (route.settings[:declared_params] - [:page, :per_page, :offset, :order]).map(&:to_s)
-
-      params.select { |key, _| key.in?(documentation_filter_params) && key.in?(ransack_keys) }.map { |key, value| [key, value.is_a?(String) ? value.strip : value] }.to_h
+      declared(params).select { |key, _| key.in?(ransack_keys) }.map { |key, value| [key, value.is_a?(String) ? value.strip : value] }.to_h
     end
 
     # 根据Ransack.predicates.keys来猜测哪些参数是查询参数
@@ -182,10 +126,6 @@ module CustomGrape
     # 如果有参数符合ransack_key匹配规则但又不希望被当做ransack_key处理，可以重写该方法
     def except_ransack_keys
       []
-    end
-
-    def use_cache?
-      Rails.env.production? || Rails.env.staging?
     end
 
     def response_error(message = "error", code = 400)
