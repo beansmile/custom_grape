@@ -1,8 +1,5 @@
 module CustomGrape
   module ResourceHelper
-    mattr_accessor :entity_includes_cache
-    @@entity_includes_cache = {}
-
     def default_order
       @default_order ||= "#{resource_class.table_name}.id DESC"
     end
@@ -34,7 +31,7 @@ module CustomGrape
     def collection
       return @collection if @collection
 
-      search = end_of_association_chain.accessible_by(current_ability).ransack(ransack_params)
+      search = end_of_association_chain.accessible_by(current_ability).ransack(declared(params), auth_object: ability_user)
       search.sorts = "#{params[:order].keys.first} #{params[:order].values.first}" if params[:order].present?
 
       @collection = search.result(distinct: true).includes(includes).order(default_order).order("#{resource_class.table_name}.id DESC")
@@ -53,7 +50,7 @@ module CustomGrape
     end
 
     def response_collection
-      present present_collection, { with: route_options[:entity] }
+      present present_collection, with: route_options[:entity]
     end
 
     def run_member_action(action, api_options = {}, *data)
@@ -66,7 +63,7 @@ module CustomGrape
       if data.present? ? resource.send(action, *data) : resource.send(action)
         response_resource
       else
-        response_record_error(resource)
+        response_error(resource.errors.full_messages.join(","))
       end
     end
 
@@ -76,67 +73,22 @@ module CustomGrape
     delegate :can?, :cannot?, :authorize!, to: :current_ability
 
     def ability_user
-      current_user
-    end
-
-    def resource_params
-      @resource_params ||= declared(params)
+      @ability_user ||= current_user
     end
 
     def includes
-      fetch_entity_includes(route_options[:entity])
-    end
-
-    def fetch_entity_includes(entity)
-      includes_cache_key = "grape_entity_includes/#{entity.name.underscore.gsub("/", "_")}".to_sym
-      includes_cache = @@entity_includes_cache[includes_cache_key]
-
-      return includes_cache if use_cache? && includes_cache.present?
-
-      data = Includes.fetch(entity.name)&.fetch_includes || []
-      @@entity_includes_cache[includes_cache_key] = data
-
-      data
+      @includes ||= Includes.fetch(route_options[:entity].name)&.fetch_includes(cache: includes_use_cache?) || []
     end
 
     def build_resource
-      @resource = end_of_association_chain.new(resource_params)
+      @resource = end_of_association_chain.new(declared(params))
     end
 
-    def ransack_params
-      declared(params).select { |key, _| key.in?(ransack_keys) }.map { |key, value| [key, value.is_a?(String) ? value.strip : value] }.to_h
+    def response_error(message)
+      error!(message)
     end
 
-    # 根据Ransack.predicates.keys来猜测哪些参数是查询参数
-    def ransack_keys
-      predicates_strings = Ransack.predicates.keys.map { |key| "_#{key}$" }.join("|")
-      # 生成后的内容 /(_eq$|_eq_any$|_eq_all$|_not_eq$|_not_eq_any$|_not_eq_all$|_matches$|_matches_any$|_matches_all$|_does_not_match$|_does_not_match_any$|_does_not_match_all$|_lt$|_lt_any$|_lt_all$|_lteq$|_lteq_any$|_lteq_all$|_gt$|_gt_any$|_gt_all$|_gteq$|_gteq_any$|_gteq_all$|_in$|_in_any$|_in_all$|_not_in$|_not_in_any$|_not_in_all$|_cont$|_cont_any$|_cont_all$|_not_cont$|_not_cont_any$|_not_cont_all$|_start$|_start_any$|_start_all$|_not_start$|_not_start_any$|_not_start_all$|_end$|_end_any$|_end_all$|_not_end$|_not_end_any$|_not_end_all$|_true$|_not_true$|_false$|_not_false$|_present$|_blank$|_null$|_not_null$|_contains$|_contains_any$|_contains_all$|_starts_with$|_starts_with_any$|_starts_with_all$|_ends_with$|_ends_with_any$|_ends_with_all$|_equals$|_equals_any$|_equals_all$|_greater_than$|_greater_than_any$|_greater_than_all$|_less_than$|_less_than_any$|_less_than_all$|_gteq_datetime$|_gteq_datetime_any$|_gteq_datetime_all$|_lteq_datetime$|_lteq_datetime_any$|_lteq_datetime_all$)/
-      regular_match = /(#{predicates_strings})/
-
-      params_ransack_keys = []
-
-      params.each do |key, _|
-        if key.match?(regular_match)
-          params_ransack_keys << key
-        end
-      end
-      (params_ransack_keys + resource_class.ransackable_scopes(ability_user)).uniq - except_ransack_keys
-    end
-
-    # 如果有参数符合ransack_key匹配规则但又不希望被当做ransack_key处理，可以重写该方法
-    def except_ransack_keys
-      []
-    end
-
-    def response_error(message = "error", code = 400)
-      error!({code: "#{code}00".to_i, detail: {}, error_message: message }, code)
-    end
-
-    def response_record_error(object)
-      response_error(object.errors.full_messages.join(","))
-    end
-
-    def use_cache?
+    def includes_use_cache?
       Rails.env.production? || Rails.env.staging?
     end
   end
