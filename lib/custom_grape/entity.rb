@@ -21,60 +21,84 @@ module CustomGrape
 
       begin
         if model = fetch_model
-          set_desc(model, attribute, options) unless options[:documentation][:desc]
-          set_type(model, attribute, options) unless options[:documentation][:type]
-          set_values(model, attribute, options) unless options[:documentation][:values]
-          set_coerce_with(model, attribute, options) unless options[:documentation][:coerce_with]
-
           custom_grape_includes_object = CustomGrape::Includes.fetch(name)
 
-          custom_grape_includes_object.includes << custom_options[:includes] if custom_options[:includes]
+          if custom_options[:includes]
+            custom_grape_includes_object.includes += custom_options[:includes].is_a?(Array) ? custom_options[:includes] : [custom_options[:includes]]
+          end
 
+          # 关联关系
           if reflection = model.reflect_on_association(attribute)
-            if reflection.class_name == "ActiveStorage::Attachment"
-              options[:using] ||= active_storage_attached_entity_name
-              custom_grape_includes_object.includes = custom_grape_includes_object.includes | [{ attribute => :blob }] unless custom_options[:includes]
-            else
-              options[:documentation][:is_array] = true if reflection.is_a?(ActiveRecord::Reflection::HasManyReflection)
-
-              options[:using] ||= "#{entity_namespace}::Simple#{reflection.klass}"
-
-              unless custom_options[:includes]
-                custom_grape_includes_object.children_includes[attribute] = {
-                  entity_name: options[:using].is_a?(String) ? options[:using] : options[:using].name,
-                }
-              end
-            end
-          elsif reflection = model.reflect_on_attachment(attribute)
-            options[:using] ||= active_storage_attached_entity_name
-
-            if reflection.is_a?(ActiveStorage::Reflection::HasManyAttachedReflection)
+            if reflection.is_a?(ActiveRecord::Reflection::HasManyReflection)
               options[:documentation][:is_array] = true
-              array = [{ "#{attribute}_attachments".to_sym => :blob }]
-            else
-              array = [{ "#{attribute}_attachment".to_sym => :blob }]
+              options[:documentation][:type] ||= Array[String, Hash]
             end
 
-            custom_grape_includes_object.includes = custom_grape_includes_object.includes | array unless custom_options[:includes]
+            if reflection.class_name == "ActiveStorage::Attachment"
+              options[:documentation][:coerce_with] ||= ->(val) {
+                case val
+                when String
+                  val
+                when Hash
+                  val[:signed_id]
+                when Array
+                  val.map { |v| v.is_a?(String) ? v : v[:signed_id] }
+                end
+              }
+            end
+
+            unless options[:using]
+              array = reflection.klass.name.split("::")
+              array[-1] = "Simple#{array[-1]}"
+
+              options[:using] = "#{entity_namespace}::#{array.join("::")}".constantize
+            end
+
+            unless custom_options[:includes]
+              custom_grape_includes_object.children_includes[attribute] = {
+                entity_name: options[:using].is_a?(String) ? options[:using] : options[:using].name,
+              }
+            end
+          # enum
+          elsif model.defined_enums[attribute.to_s]
+            options[:documentation][:type] ||= String
+            options[:documentation][:values] ||= model.send(attribute.to_s.pluralize).keys + [""]
+
+            unless options[:documentation][:desc]
+              enums_desc = model.send(attribute.to_s.pluralize).keys.map { |key| "#{key}为#{model.human_attribute_name("#{attribute}.#{key}")}" }.join("，")
+              options[:documentation][:desc] = "#{model.human_attribute_name(attribute)}。#{enums_desc}"
+            end
+          end
+
+          column = model.columns_hash[attribute.to_s]
+
+          unless options[:documentation][:type]
+            options[:documentation][:type] = {
+              integer: Integer,
+              bigint: Integer,
+              float: Float,
+              decimal: BigDecimal,
+              numeric: Numeric,
+              datetime: DateTime,
+              time: Time,
+              date: Date,
+              boolean: Grape::API::Boolean
+            }[column&.type] || String
+          end
+
+          unless options[:documentation][:desc]
+            if column
+              options[:documentation][:desc] = model.human_attribute_name(column.name)
+            elsif model.instance_methods.include?(attribute)
+              options[:documentation][:desc] = model.human_attribute_name(attribute)
+            end
           end
         end
       rescue ActiveRecord::NoDatabaseError, ActiveRecord::StatementInvalid
         # do nothing
       end
 
-      if options[:using] == active_storage_attached_entity_name && !block_given?
-        expose(attribute, options) do |resource|
-          attached = resource.send(attribute)
-
-          if attached.is_a?(ActiveStorage::Attached::One)
-            attached.attached? ? attached : nil
-          else
-            attached
-          end
-        end
-      else
-        expose(attribute, options, &block)
-      end
+      expose(attribute, options, &block)
     end
 
     def self.entity_namespace
@@ -105,69 +129,6 @@ module CustomGrape
       end
 
       model
-    end
-
-    def self.set_desc(model, attribute, options)
-      column = model.columns_hash[attribute.to_s]
-
-      if column
-        options[:documentation][:desc] = model.human_attribute_name(column.name)
-
-        if model.defined_enums[attribute.to_s]
-          enums_desc = model.send(attribute.to_s.pluralize).keys.map { |key| "#{key}为#{model.human_attribute_name("#{column.name}.#{key}")}" }.join("，")
-          options[:documentation][:desc] += "。#{enums_desc}"
-        end
-      elsif model.instance_methods.include?(attribute)
-        options[:documentation][:desc] = model.human_attribute_name(attribute)
-      end
-    end
-
-    def self.set_type(model, attribute, options)
-      options[:documentation][:type] = if reflection = model.reflect_on_attachment(attribute)
-                                         reflection.is_a?(ActiveStorage::Reflection::HasManyAttachedReflection) ? Array[String, Hash] : String
-                                         # enum 类型在数据库是整型，但是暴露出来是 string
-                                       elsif model.defined_enums[attribute.to_s]
-                                         String
-                                       else
-                                         column = model.columns_hash[attribute.to_s]
-
-                                         {
-                                           integer: Integer,
-                                           bigint: Integer,
-                                           float: Float,
-                                           decimal: BigDecimal,
-                                           numeric: Numeric,
-                                           datetime: DateTime,
-                                           time: Time,
-                                           date: Date,
-                                           boolean: Grape::API::Boolean
-                                         }[column&.type] || String
-                                       end
-    end
-
-    def self.set_values(model, attribute, options)
-      if model.defined_enums[attribute.to_s]
-        options[:documentation][:values] = model.send(attribute.to_s.pluralize).keys + [""]
-      end
-    end
-
-    def self.set_coerce_with(model, attribute, options)
-      return unless model.reflect_on_association(attribute)
-
-      options[:documentation][:coerce_with] = ->(val) {
-        case val
-        when String
-          val
-        when Hash
-          val[:signed_id]
-        when Array
-          val.map { |v| v.is_a?(String) ? v : v[:signed_id] }
-        end
-      }
-    end
-
-    def self.active_storage_attached_entity_name
-      raise NotImplementedError
     end
   end
 end
