@@ -33,22 +33,19 @@ module CustomGrape
 
           # 关联关系
           if reflection = model.reflect_on_association(attribute)
-              options[:documentation][:is_array] = true
-            if reflection.is_a?(ActiveRecord::Reflection::HasManyReflection)
-              options[:documentation][:type] ||= Array[String, Hash]
-            end
+              options[:documentation][:is_array] = true if reflection.is_a?(ActiveRecord::Reflection::HasManyReflection)
 
             if reflection.class_name == "ActiveStorage::Attachment"
-              options[:documentation][:coerce_with] ||= ->(val) {
-                case val
-                when String
-                  val
-                when Hash
-                  val[:signed_id]
-                when Array
-                  val.map { |v| v.is_a?(String) ? v : v[:signed_id] }
+              if reflection.is_a?(ActiveRecord::Reflection::HasManyReflection)
+                options[:documentation][:type] ||= Array[String, Hash]
+                options[:documentation][:coerce_with] ||= -> (vals) do
+                  vals.map { |val| val.is_a?(String) ? val : val[:signed_id] }
                 end
-              }
+              else
+                options[:documentation][:coerce_with] ||= -> (val) do
+                  val.is_a?(String) ? val : val[:signed_id]
+                end
+              end
             end
 
             unless options[:using]
