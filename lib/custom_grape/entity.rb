@@ -9,8 +9,12 @@ module CustomGrape
     def self.custom_expose(*args, &block)
       options = args.last.is_a?(Hash) ? args.pop : {}
       custom_options = {
-        includes: options.delete(:includes)
+        includes: options.delete(:includes),
+        except: options.delete(:except),
+        only: options.delete(:only)
       }
+
+      raise ArgumentError, "使用only或except参数时不能同时传block参数" if block_given? && (custom_options[:only] || custom_options[:except])
 
       options = merge_options(options)
 
@@ -24,13 +28,13 @@ module CustomGrape
           custom_grape_includes_object = CustomGrape::Includes.fetch(name)
 
           if custom_options[:includes]
-            custom_grape_includes_object.includes += custom_options[:includes].is_a?(Array) ? custom_options[:includes] : [custom_options[:includes]]
+            custom_grape_includes_object.includes[attribute] = custom_options[:includes].is_a?(Array) ? custom_options[:includes] : [custom_options[:includes]]
           end
 
           # 关联关系
           if reflection = model.reflect_on_association(attribute)
-            if reflection.is_a?(ActiveRecord::Reflection::HasManyReflection)
               options[:documentation][:is_array] = true
+            if reflection.is_a?(ActiveRecord::Reflection::HasManyReflection)
               options[:documentation][:type] ||= Array[String, Hash]
             end
 
@@ -54,11 +58,16 @@ module CustomGrape
               options[:using] = "#{entity_namespace}::#{array.join("::")}".constantize
             end
 
+            options[:documentation][:type] ||= options[:using]
+
             unless custom_options[:includes]
               custom_grape_includes_object.children_includes[attribute] = {
                 entity_name: options[:using].is_a?(String) ? options[:using] : options[:using].name,
               }
             end
+
+            custom_grape_includes_object.only[attribute] = custom_options[:only] if custom_options[:only]
+            custom_grape_includes_object.except[attribute] = custom_options[:except] if custom_options[:except]
           # enum
           elsif model.defined_enums[attribute.to_s]
             options[:documentation][:type] ||= String
@@ -93,12 +102,46 @@ module CustomGrape
               options[:documentation][:desc] = model.human_attribute_name(attribute)
             end
           end
+
+          raise ArgumentError, "only或except参数必须结合using使用" if options[:using].nil? && (custom_options[:only] || custom_options[:except])
         end
       rescue ActiveRecord::NoDatabaseError, ActiveRecord::StatementInvalid
         # do nothing
       end
 
-      expose(attribute, options, &block)
+      if custom_options[:except] || custom_options[:only]
+        options_using = options.delete(:using)
+
+        expose(attribute, options) do |object, opts|
+          except_attrs = nil
+
+          attr_path_dup = opts.opts_hash[:attr_path].dup.pop
+
+          # except取并集
+          if opts.instance_variable_get("@has_except") || custom_options[:except]
+            except_attrs = (opts.except_fields&.[](attr_path_dup) || []) | (custom_options[:except] || [])
+          end
+
+          # only取交集
+          only_attrs = if opts.instance_variable_get("@has_only") && custom_options[:only]
+                         if opts.only_fields[attr_path_dup] == true
+                           custom_options[:only]
+                         else
+                           opts.only_fields[attr_path_dup] & custom_options[:only]
+                         end
+                       elsif opts.instance_variable_get("@has_only")
+                         opts.only_fields[attr_path_dup] == true ?  nil : opts.only_fields[attr_path_dup]
+                       elsif custom_options[:only]
+                         custom_options[:only]
+                       else
+                         nil
+                       end
+
+          options_using.represent(object.send(attribute), opts.merge(only: only_attrs, except: except_attrs))
+        end
+      else
+        expose(attribute, options, &block)
+      end
     end
 
     def self.entity_namespace

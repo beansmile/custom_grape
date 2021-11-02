@@ -51,20 +51,96 @@ class AppAPI::V1::ProductCategories < API
 end
 ```
 
-### Grape entity基础用法
+### Grape entity
+
+#### 自动识别关联model
+
+支持以下3种格式
+
+- AppAPI::Entities::Simple#{model_name}（如AppAPI::Entities::SimpleProductCategory）
+- AppAPI::Entities::#{model_name}（如AppAPI::Entities::ProductCategory）
+- AppAPI::Entities::#{model_name}Detail（如AppAPI::Entities::ProductCategoryDetail）
+
+如Entity name不符合上面3种格式，可按下面方法重写
+
+```
+module AppAPI::Entities
+  class Mine < ::Entities::Model
+    def self.fetch_model
+      ::User
+    end
+
+    custom_expose :name
+  end
+end
+```
+
+如Entity namespace默认为前两个，如 `AppAPI::Entities::ProductCategory` 的namespace为 `AppAPI::Entities`，自动识别关联model时会去除namespace，如不符合默认规则，可按下面方法重写
 
 ```
 module AppAPI::Entities
   class SimpleProductCategory < ::Entities::Model
-    custom_expose :name # 用custom_expose，会自动填充属性的类型，描述
-  end
+    def self.entity_namespace
+      # 默认逻辑
+      # self.to_s.split("::")[0..1].join("::")
+      self.to_s.split("::")[0..2].join("::")
+    end
 
-  class ProductCategory < SimpleProductCategory
-    custom_expose :image # 使用custom_expose，会自动判断是否ActiveStorage，是的话自动使用对应的entity
-    custom_expose :products # 使用custom_expose，会自动判断是否关联关系， 是的话自动使用对应的Simple entity，可使用using参数覆盖
-  end
-
-  class ProductCategoryDetail < ProductCategory
+    custom_expose :name
   end
 end
 ```
+
+#### 自动生成documentation参数
+
+```
+module AppAPI::Entities
+  class ProductCategory < ::Entities::Model
+    custom_expose :name
+    custom_expose :products
+    custom_expose :image_attachment, as: :image # has_one_attach :image时需要写成这样
+  end
+end
+```
+
+- desc：根据ProductCategory.human_attribute_name(:name)生成
+- type：根据数据表属性，关联关系生成
+- using: 如检测到是关联关系，则自动生成using: "Simple#{class_name}"
+
+#### only和except
+
+```
+module AppAPI::Entities
+  class SimpleProductCategory < ::Entities::Model
+    custom_expose :name
+    custom_expose :product_categories, only: [:name]
+  end
+end
+```
+
+传only和except参数，可选择关联关系返回的数据，这样就可以把一些关联关系放到Simple entity而不用担心关联数据太多，或无限循环调用的问题了
+
+
+#### 提供includes配置
+
+```
+module AppAPI::Entities
+  class User < ::Entities::Model
+    custom_expose :profile_name, includes: [:profile]
+  end
+end
+```
+
+调用 `CustomGrape::Includes.fetch("AppAPI::Entities::User").fetch_includes` 可得到结果 `[:profile]`
+
+
+```
+module AppAPI::Entities
+  class User < ::Entities::Model
+    custom_expose :profile_name, includes: [:profile]
+    custom_expose :friends # 关联关系会自动生成includes，可通过传includes覆盖
+  end
+end
+```
+
+调用 `CustomGrape::Includes.fetch("AppAPI::Entities::User").fetch_includes` 时，如果检测到 `friends` 是关联关系，则会递归调用 `CustomGrape::Includes.fetch("AppAPI::Entities::SimpleFriend").fetch_includes` 直到检测不到关联关系为止
