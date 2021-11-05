@@ -48,7 +48,7 @@ module CustomGrape
               end
             end
 
-            unless options[:using]
+            if !reflection.polymorphic? && !options[:using]
               array = reflection.klass.name.split("::")
               array[-1] = "Simple#{array[-1]}"
 
@@ -58,9 +58,13 @@ module CustomGrape
             options[:documentation][:type] ||= options[:using]
 
             unless custom_options[:includes]
-              custom_grape_includes_object.children_includes[attribute] = {
-                entity_name: options[:using].is_a?(String) ? options[:using] : options[:using].name,
-              }
+              if reflection.polymorphic?
+                custom_grape_includes_object.includes[attribute] = [attribute]
+              else
+                custom_grape_includes_object.children_includes[attribute] = {
+                  entity_name: options[:using].is_a?(String) ? options[:using] : options[:using].name,
+                }
+              end
             end
 
             custom_grape_includes_object.only[attribute] = custom_options[:only] if custom_options[:only]
@@ -106,39 +110,51 @@ module CustomGrape
         # do nothing
       end
 
-      if custom_options[:except] || custom_options[:only]
-        options_using = options.delete(:using)
+      if custom_options[:except] || custom_options[:only] || reflection&.polymorphic?
+        inside_using = options.delete(:using)
+        inside_entity_namespace = entity_namespace
 
         expose(attribute, options) do |object, opts|
-          except_attrs = nil
+          if reflection.polymorphic?
+            array = object.send("#{attribute}_type").split("::")
+            array[-1] = "Simple#{array[-1]}"
 
-          attr_path_dup = opts.opts_hash[:attr_path].dup.pop
-
-          # except取并集
-          if opts.instance_variable_get("@has_except") || custom_options[:except]
-            except_attrs = (opts.except_fields&.[](attr_path_dup) || []) | (custom_options[:except] || [])
+            inside_using = "#{inside_entity_namespace}::#{array.join("::")}".constantize
           end
 
-          # only取交集
-          only_attrs = if opts.instance_variable_get("@has_only") && custom_options[:only]
-                         if opts.only_fields[attr_path_dup] == true
-                           custom_options[:only]
-                         else
-                           opts.only_fields[attr_path_dup] & custom_options[:only]
-                         end
-                       elsif opts.instance_variable_get("@has_only")
-                         opts.only_fields[attr_path_dup] == true ?  nil : opts.only_fields[attr_path_dup]
-                       elsif custom_options[:only]
-                         custom_options[:only]
-                       else
-                         nil
-                       end
-
-          options_using.represent(object.send(attribute), opts.merge(only: only_attrs, except: except_attrs))
+          inside_using.represent(object.send(attribute), handle_opts(opts, custom_options))
         end
       else
         expose(attribute, options, &block)
       end
+    end
+
+    def handle_opts(opts, custom_options)
+      except_attrs = nil
+
+      attr_path_dup = opts.opts_hash[:attr_path].dup.pop
+
+      # except取并集
+      if opts.instance_variable_get("@has_except") || custom_options[:except]
+        except_attrs = (opts.except_fields&.[](attr_path_dup) || []) | (custom_options[:except] || [])
+      end
+
+      # only取交集
+      only_attrs = if opts.instance_variable_get("@has_only") && custom_options[:only]
+                     if opts.only_fields[attr_path_dup] == true
+                       custom_options[:only]
+                     else
+                       opts.only_fields[attr_path_dup] & custom_options[:only]
+                     end
+                   elsif opts.instance_variable_get("@has_only")
+                     opts.only_fields[attr_path_dup] == true ?  nil : opts.only_fields[attr_path_dup]
+                   elsif custom_options[:only]
+                     custom_options[:only]
+                   else
+                     nil
+                   end
+
+      opts.merge(only: only_attrs, except: except_attrs)
     end
 
     def self.entity_namespace
