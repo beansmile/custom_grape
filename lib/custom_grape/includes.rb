@@ -1,6 +1,6 @@
 module CustomGrape
   class Includes
-    attr_accessor :entity_name, :includes, :children_includes, :only, :except
+    attr_accessor :entity_name, :includes, :only, :except, :children_entities
     mattr_accessor :collection, default: {}
     mattr_accessor :includes_cache, default: {}
 
@@ -28,7 +28,7 @@ module CustomGrape
     def initialize(attrs = {})
       @entity_name = attrs[:entity_name]
       @includes = {}
-      @children_includes = {}
+      @children_entities = {}
       @only = {}
       @except = {}
     end
@@ -54,7 +54,7 @@ module CustomGrape
 
       self.class.includes_cache[cache_key] = includes.values.flatten
 
-      self.class.includes_cache[cache_key] += children_includes.select do |key, _|
+      self.class.includes_cache[cache_key] += children_entities.select { |_, value| value[:includes] }.select do |key, _|
         flag = if options[:only] && options[:except]
                  options[:only].include?(key) && !options[:except].include?(key)
                elsif options[:only]

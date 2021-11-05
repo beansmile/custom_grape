@@ -15,7 +15,6 @@ module CustomGrape
       end
 
       def custom_read_options(route_options = {})
-        route_options[:entity] ||= parent_namespace_options[:entity] || "#{entity_namespace}::Simple#{parent_namespace_options[:class_name]}".constantize
         change_route_setting_description_if_need(description: "#{parent_namespace_options[:class_name].constantize.model_name.human}选项列表")
 
         paginate
@@ -24,7 +23,10 @@ module CustomGrape
         })) do
           authorize! :read_options, resource_class
 
-          @collection = end_of_association_chain.accessible_by(current_ability, :read_options).ransack(ransack_params).result(distinct: true).includes(includes).order(default_order).order("id DESC")
+          search = end_of_association_chain.accessible_by(current_ability, :read_options).ransack(declared(params), auth_object: ability_user)
+          search.sorts = "#{params[:order].keys.first} #{params[:order].values.first}" if params[:order].present?
+
+          @collection = search.result(distinct: true).includes(includes).order(default_order).order("#{resource_class.table_name}.id DESC")
 
           response_collection
         end
@@ -57,7 +59,7 @@ module CustomGrape
         change_route_setting_description_if_need(description: "更新#{parent_namespace_options[:class_name].constantize.model_name.human}")
 
         custom_route(:put, "/", route_options) do
-          run_member_action(:update, {}, resource_params)
+          run_member_action(:update, {}, declared(params))
         end
       end
 
@@ -88,7 +90,33 @@ module CustomGrape
 
         if description[:params]
           description[:params].map do |key, value|
-            value.reverse_merge!(route_options[:entity].documentation[key.to_sym] || {})
+            current_entity = route_options[:entity]
+
+            unless key.match?(/\[/)
+              value.reverse_merge!(current_entity.documentation[key.to_sym] || {})
+
+              next
+            end
+
+            # key为admin_user_attributes[email]
+            array = key.gsub("]", "").split("[")
+            # column 为 email
+            column = array.pop
+
+            # array为["admin_user_attributes"]
+            array.each_with_index do |attr, index|
+              break unless attr.match?(/_attributes$/)
+              # nested_attribute为 admin_user
+              nested_attribute = attr.gsub(/_attributes$/, "").to_sym
+
+              break unless current_entity.fetch_model.nested_attributes_options[nested_attribute]
+
+              current_entity = CustomGrape::Includes.fetch(current_entity.name).children_entities[nested_attribute]&.[](:entity)
+
+              break unless current_entity
+
+              value.reverse_merge!(current_entity.documentation[column.to_sym] || {}) if array.length == index + 1
+            end
           end
         end
 

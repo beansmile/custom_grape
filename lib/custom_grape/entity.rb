@@ -55,15 +55,20 @@ module CustomGrape
               options[:using] = "#{entity_namespace}::#{array.join("::")}".constantize
             end
 
+            if options[:using]
+              # 把using常量化
+              options[:using] = options[:using].constantize if options[:using].is_a?(String)
+
+              custom_grape_includes_object.children_entities[attribute] = { entity: options[:using], includes: false }
+            end
+
             options[:documentation][:type] ||= options[:using]
 
             unless custom_options[:includes]
               if reflection.polymorphic?
                 custom_grape_includes_object.includes[attribute] = [attribute]
               else
-                custom_grape_includes_object.children_includes[attribute] = {
-                  entity_name: options[:using].is_a?(String) ? options[:using] : options[:using].name,
-                }
+                custom_grape_includes_object.children_entities[attribute][:includes] = true
               end
             end
 
