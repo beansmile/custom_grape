@@ -67,7 +67,7 @@ module CustomGrape
 
         flag
       end.map do |key, data|
-        { key => (CustomGrape::Includes.fetch(data[:entity_name])&.fetch_includes(cache: cache, only: only[key], except: except[key]) || []) }
+        { key => (data[:entity].includes(cache: cache, only: only[key], except: except[key]) || []) }
       end
 
       self.class.includes_cache[cache_key] += self.class.fetch(super_entity_name)&.fetch_includes(options) || []

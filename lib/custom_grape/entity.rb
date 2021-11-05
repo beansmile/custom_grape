@@ -6,6 +6,10 @@ module CustomGrape
       super
     end
 
+    def self.includes(options = {})
+      CustomGrape::Includes.fetch(name).fetch_includes(options)
+    end
+
     def self.custom_expose(*args, &block)
       options = args.last.is_a?(Hash) ? args.pop : {}
       custom_options = {
@@ -134,34 +138,6 @@ module CustomGrape
       end
     end
 
-    def handle_opts(opts, custom_options)
-      except_attrs = nil
-
-      attr_path_dup = opts.opts_hash[:attr_path].dup.pop
-
-      # except取并集
-      if opts.instance_variable_get("@has_except") || custom_options[:except]
-        except_attrs = (opts.except_fields&.[](attr_path_dup) || []) | (custom_options[:except] || [])
-      end
-
-      # only取交集
-      only_attrs = if opts.instance_variable_get("@has_only") && custom_options[:only]
-                     if opts.only_fields[attr_path_dup] == true
-                       custom_options[:only]
-                     else
-                       opts.only_fields[attr_path_dup] & custom_options[:only]
-                     end
-                   elsif opts.instance_variable_get("@has_only")
-                     opts.only_fields[attr_path_dup] == true ?  nil : opts.only_fields[attr_path_dup]
-                   elsif custom_options[:only]
-                     custom_options[:only]
-                   else
-                     nil
-                   end
-
-      opts.merge(only: only_attrs, except: except_attrs)
-    end
-
     def self.entity_namespace
       self.to_s.split("::")[0..1].join("::")
     end
@@ -190,6 +166,34 @@ module CustomGrape
       end
 
       model
+    end
+
+    def handle_opts(opts, custom_options)
+      except_attrs = nil
+
+      attr_path_dup = opts.opts_hash[:attr_path].dup.pop
+
+      # except取并集
+      if opts.instance_variable_get("@has_except") || custom_options[:except]
+        except_attrs = (opts.except_fields&.[](attr_path_dup) || []) | (custom_options[:except] || [])
+      end
+
+      # only取交集
+      only_attrs = if opts.instance_variable_get("@has_only") && custom_options[:only]
+                     if opts.only_fields[attr_path_dup] == true
+                       custom_options[:only]
+                     else
+                       opts.only_fields[attr_path_dup] & custom_options[:only]
+                     end
+                   elsif opts.instance_variable_get("@has_only")
+                     opts.only_fields[attr_path_dup] == true ?  nil : opts.only_fields[attr_path_dup]
+                   elsif custom_options[:only]
+                     custom_options[:only]
+                   else
+                     nil
+                   end
+
+      opts.merge(only: only_attrs, except: except_attrs)
     end
   end
 end

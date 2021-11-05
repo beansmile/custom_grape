@@ -77,7 +77,7 @@ module CustomGrape
     end
 
     def includes
-      @includes ||= Includes.fetch(route_options[:entity].name)&.fetch_includes(cache: includes_use_cache?) || []
+      @includes ||= route_options[:entity].respond_to?(:includes) ? route_options[:entity].includes(cache: includes_use_cache?) : []
     end
 
     def build_resource
