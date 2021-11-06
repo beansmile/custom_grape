@@ -1,5 +1,7 @@
 module CustomGrape
   class Entity < Grape::Entity
+    mattr_accessor :includes_cache, default: {}
+
     def self.inherited(subclass)
       CustomGrape::Includes.build(subclass.name)
 
@@ -7,7 +9,20 @@ module CustomGrape
     end
 
     def self.includes(options = {})
-      CustomGrape::Includes.fetch(name).fetch_includes(options)
+      if use_includes_cache
+        includes_cache[includes_cache_key(options)] ||= CustomGrape::Includes.fetch(name)&.fetch_includes(options) || []
+      else
+        includes_cache[includes_cache_key(options)] = CustomGrape::Includes.fetch(name)&.fetch_includes(options) || []
+      end
+    end
+
+    def self.use_includes_cache
+      Rails.env.production? || Rails.env.staging?
+    end
+
+    def self.includes_cache_key(options = {})
+      signature = ActiveSupport::Digest.hexdigest(options.sort.to_s)
+      "custom_grape:#{name.underscore}-#{signature}".to_sym
     end
 
     def self.custom_expose(*args, &block)

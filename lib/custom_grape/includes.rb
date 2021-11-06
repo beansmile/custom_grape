@@ -21,10 +21,6 @@ module CustomGrape
       @super_entity ||= entity.superclass
     end
 
-    def super_entity_name
-      @super_entity_name ||= super_entity.name
-    end
-
     def initialize(attrs = {})
       @entity_name = attrs[:entity_name]
       @includes = {}
@@ -39,22 +35,12 @@ module CustomGrape
     # - except
     def fetch_includes(options = {})
       options.reverse_merge!({
-        cache: false,
         only: nil,
         except: nil
       })
 
-      options_dup = options.dup
-      cache = options_dup.delete(:cache)
-
-      signature = ActiveSupport::Digest.hexdigest(options_dup.sort.to_s)
-      cache_key = "custom_grape/includes:#{entity_name.underscore}-#{signature}".to_sym
-
-      return self.class.includes_cache[cache_key] if cache && !self.class.includes_cache[cache_key].nil?
-
-      self.class.includes_cache[cache_key] = includes.values.flatten
-
-      self.class.includes_cache[cache_key] += children_entities.select { |_, value| value[:includes] }.select do |key, _|
+      array = includes.values.flatten
+      array += children_entities.select { |_, value| value[:includes] }.select do |key, _|
         flag = if options[:only] && options[:except]
                  options[:only].include?(key) && !options[:except].include?(key)
                elsif options[:only]
@@ -67,10 +53,10 @@ module CustomGrape
 
         flag
       end.map do |key, data|
-        { key => (data[:entity].includes(cache: cache, only: only[key], except: except[key]) || []) }
+        { key => (data[:entity].includes(only: only[key], except: except[key]) || []) }
       end
 
-      self.class.includes_cache[cache_key] += self.class.fetch(super_entity_name)&.fetch_includes(options) || []
+      array += super_entity.includes(options)
     end
   end
 end

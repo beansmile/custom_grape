@@ -77,7 +77,7 @@ module CustomGrape
     end
 
     def includes
-      @includes ||= route_options[:entity].respond_to?(:includes) ? route_options[:entity].includes(cache: includes_use_cache?) : []
+      @includes ||= route_options[:entity].respond_to?(:includes) ? route_options[:entity].includes : []
     end
 
     def build_resource
@@ -86,10 +86,6 @@ module CustomGrape
 
     def response_error(message)
       error!(message)
-    end
-
-    def includes_use_cache?
-      Rails.env.production? || Rails.env.staging?
     end
   end
 end
