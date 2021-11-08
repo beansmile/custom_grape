@@ -143,4 +143,4 @@ module AppAPI::Entities
 end
 ```
 
-调用 `CustomGrape::Includes.fetch("AppAPI::Entities::User").fetch_includes` 时，如果检测到 `friends` 是关联关系，则会递归调用 `CustomGrape::Includes.fetch("AppAPI::Entities::SimpleFriend").fetch_includes` 直到检测不到关联关系为止
+调用 `AppAPI::Entities::User.includes` 时，如果检测到 `friends` 是关联关系，则会递归调用 `AppAPI::Entities::SimpleFriend.includes` 直到检测不到关联关系为止

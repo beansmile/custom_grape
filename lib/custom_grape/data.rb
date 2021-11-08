@@ -1,5 +1,5 @@
 module CustomGrape
-  class Includes
+  class Data
     attr_accessor :entity_name, :includes, :only, :except, :children_entities
     mattr_accessor :collection, default: {}
     mattr_accessor :includes_cache, default: {}

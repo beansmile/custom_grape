@@ -3,16 +3,16 @@ module CustomGrape
     mattr_accessor :includes_cache, default: {}
 
     def self.inherited(subclass)
-      CustomGrape::Includes.build(subclass.name)
+      CustomGrape::Data.build(subclass.name)
 
       super
     end
 
     def self.includes(options = {})
       if use_includes_cache
-        includes_cache[includes_cache_key(options)] ||= CustomGrape::Includes.fetch(name)&.fetch_includes(options) || []
+        includes_cache[includes_cache_key(options)] ||= CustomGrape::Data.fetch(name)&.fetch_includes(options) || []
       else
-        CustomGrape::Includes.fetch(name)&.fetch_includes(options) || []
+        CustomGrape::Data.fetch(name)&.fetch_includes(options) || []
       end
     end
 
@@ -49,7 +49,7 @@ module CustomGrape
 
       begin
         if model = fetch_model
-          custom_grape_includes_object = CustomGrape::Includes.fetch(name)
+          custom_grape_includes_object = CustomGrape::Data.fetch(name)
 
           if custom_options[:includes]
             custom_grape_includes_object.includes[attribute] = custom_options[:includes].is_a?(Array) ? custom_options[:includes] : [custom_options[:includes]]
