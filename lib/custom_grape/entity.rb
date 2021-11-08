@@ -12,7 +12,7 @@ module CustomGrape
       if use_includes_cache
         includes_cache[includes_cache_key(options)] ||= CustomGrape::Includes.fetch(name)&.fetch_includes(options) || []
       else
-        includes_cache[includes_cache_key(options)] = CustomGrape::Includes.fetch(name)&.fetch_includes(options) || []
+        CustomGrape::Includes.fetch(name)&.fetch_includes(options) || []
       end
     end
 
@@ -23,6 +23,11 @@ module CustomGrape
     def self.includes_cache_key(options = {})
       signature = ActiveSupport::Digest.hexdigest(options.sort.to_s)
       "custom_grape:#{name.underscore}-#{signature}".to_sym
+    end
+
+    def self.custom_represent(objects, options = {})
+      # TODO 缓存
+      represent(objects, options)
     end
 
     def self.custom_expose(*args, &block)
@@ -134,19 +139,17 @@ module CustomGrape
         # do nothing
       end
 
-      if custom_options[:except] || custom_options[:only] || reflection&.polymorphic?
+      if !block_given? && (options[:using] || reflection&.polymorphic? || custom_options[:except] || custom_options[:only])
         inside_using = options.delete(:using)
-        inside_entity_namespace = entity_namespace
 
         expose(attribute, options) do |object, opts|
-          if reflection.polymorphic?
-            array = object.send("#{attribute}_type").split("::")
-            array[-1] = "Simple#{array[-1]}"
+          if is_defined_in_entity?(attribute)
+            send(attribute)
+          else
+            inside_using = polymorphic_using_entity_class(reflection) if reflection&.polymorphic?
 
-            inside_using = "#{inside_entity_namespace}::#{array.join("::")}".constantize
+            inside_using.custom_represent(object.send(attribute), handle_opts(opts, custom_options))
           end
-
-          inside_using.represent(object.send(attribute), handle_opts(opts, custom_options))
         end
       else
         expose(attribute, options, &block)
@@ -181,6 +184,13 @@ module CustomGrape
       end
 
       model
+    end
+
+    def polymorphic_using_entity_class(reflection)
+      array = object.send(reflection.foreign_type).split("::")
+      array[-1] = "Simple#{array[-1]}"
+
+      "#{self.class.entity_namespace}::#{array.join("::")}".constantize
     end
 
     def handle_opts(opts, custom_options)

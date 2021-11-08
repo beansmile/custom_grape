@@ -46,11 +46,11 @@ module CustomGrape
     end
 
     def response_resource
-      present resource, with: route_options[:entity]
+      custom_present resource, with: route_options[:entity]
     end
 
     def response_collection
-      present present_collection, with: route_options[:entity]
+      custom_present present_collection, with: route_options[:entity]
     end
 
     def run_member_action(action, api_options = {}, *data)
@@ -86,6 +86,44 @@ module CustomGrape
 
     def response_error(message)
       error!(message)
+    end
+
+    def custom_present(*args)
+      options = args.count > 1 ? args.extract_options! : {}
+      key, object = if args.count == 2 && args.first.is_a?(Symbol)
+                      args
+                    else
+                      [nil, args.first]
+                    end
+      entity_class = entity_class_for_obj(object, options)
+
+      root = options.delete(:root)
+
+      representation = if entity_class
+                         # 重写了这里，调用custom_entity_representation_for方法
+                         custom_entity_representation_for(entity_class, object, options)
+                       else
+                         object
+                       end
+
+      representation = { root => representation } if root
+
+      if key
+        representation = (body || {}).merge(key => representation)
+      elsif entity_class.present? && body
+        raise ArgumentError, "Representation of type #{representation.class} cannot be merged." unless representation.respond_to?(:merge)
+
+        representation = body.merge(representation)
+      end
+
+      body representation
+    end
+
+    def custom_entity_representation_for(entity_class, object, options)
+      embeds = { env: env }
+      embeds[:version] = env[Grape::Env::API_VERSION] if env[Grape::Env::API_VERSION]
+      # 重写了这里，调用custom_represent方法
+      entity_class.custom_represent(object, **embeds.merge(options))
     end
   end
 end
