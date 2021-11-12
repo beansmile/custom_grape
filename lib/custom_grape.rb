@@ -3,6 +3,7 @@ require "grape-entity"
 require "grape-kaminari"
 
 require "custom_grape/version"
+require "custom_grape/util"
 require "custom_grape/data"
 require "custom_grape/resource_helper"
 require "custom_grape/base"

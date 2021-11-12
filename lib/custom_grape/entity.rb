@@ -1,9 +1,16 @@
 module CustomGrape
   class Entity < Grape::Entity
+    extend Util
+
     mattr_accessor :includes_cache, default: {}
 
     def self.inherited(subclass)
-      CustomGrape::Data.build(subclass.name)
+      data = CustomGrape::Data.build(subclass.name)
+
+      if superclass_data = CustomGrape::Data.fetch(name)
+        data.includes = superclass_data.includes.dup
+        data.children_entities = superclass_data.children_entities.dup
+      end
 
       super
     end
@@ -22,12 +29,20 @@ module CustomGrape
 
     def self.includes_cache_key(options = {})
       signature = ActiveSupport::Digest.hexdigest(options.sort.to_s)
-      "custom_grape:#{name.underscore}-#{signature}".to_sym
+      "custom_grape:includes:#{name.underscore}-#{signature}".to_sym
     end
 
     def self.custom_represent(objects, options = {})
-      # TODO 缓存
+      # TODO cache
       represent(objects, options)
+    end
+
+    def self.use_cache
+      false
+    end
+
+    def self.cache_key(objects, options = {})
+      # TODO cache
     end
 
     def self.custom_expose(*args, &block)
@@ -45,19 +60,20 @@ module CustomGrape
       raise ArgumentError, "只能传一个属性" if args.size > 1
 
       attribute = args[0]
+      as_name = options[:as] || attribute
       options[:documentation] ||= {}
+
+      custom_grape_data_object = CustomGrape::Data.fetch(name)
 
       begin
         if model = fetch_model
-          custom_grape_includes_object = CustomGrape::Data.fetch(name)
-
           if custom_options[:includes]
-            custom_grape_includes_object.includes[attribute] = custom_options[:includes].is_a?(Array) ? custom_options[:includes] : [custom_options[:includes]]
+            custom_grape_data_object.includes[as_name] = custom_options[:includes].is_a?(Array) ? custom_options[:includes] : [custom_options[:includes]]
           end
 
           # 关联关系
           if reflection = model.reflect_on_association(attribute)
-              options[:documentation][:is_array] = true if reflection.is_a?(ActiveRecord::Reflection::HasManyReflection)
+            options[:documentation][:is_array] = true if reflection.is_a?(ActiveRecord::Reflection::HasManyReflection)
 
             if reflection.class_name == "ActiveStorage::Attachment"
               if reflection.is_a?(ActiveRecord::Reflection::HasManyReflection)
@@ -83,21 +99,25 @@ module CustomGrape
               # 把using常量化
               options[:using] = options[:using].constantize if options[:using].is_a?(String)
 
-              custom_grape_includes_object.children_entities[attribute] = { entity: options[:using], includes: false }
+              custom_grape_data_object.children_entities[as_name] = {
+                name: attribute,
+                entity: options[:using],
+                includes: false,
+                only: custom_options[:only],
+                except: custom_options[:except]
+              }
             end
 
             options[:documentation][:type] ||= options[:using]
 
             unless custom_options[:includes]
               if reflection.polymorphic?
-                custom_grape_includes_object.includes[attribute] = [attribute]
+                custom_grape_data_object.includes[as_name] = [attribute]
               else
-                custom_grape_includes_object.children_entities[attribute][:includes] = true
+                custom_grape_data_object.children_entities[as_name][:includes] = true
               end
             end
 
-            custom_grape_includes_object.only[attribute] = custom_options[:only] if custom_options[:only]
-            custom_grape_includes_object.except[attribute] = custom_options[:except] if custom_options[:except]
           # enum
           elsif model.defined_enums[attribute.to_s]
             options[:documentation][:type] ||= String
@@ -132,24 +152,18 @@ module CustomGrape
               options[:documentation][:desc] = model.human_attribute_name(attribute)
             end
           end
-
-          raise ArgumentError, "only或except参数必须结合using使用" if options[:using].nil? && (custom_options[:only] || custom_options[:except])
         end
       rescue ActiveRecord::NoDatabaseError, ActiveRecord::StatementInvalid
         # do nothing
       end
 
-      if !block_given? && (options[:using] || reflection&.polymorphic? || custom_options[:except] || custom_options[:only])
+      if custom_grape_data_object.children_entities[as_name] && !block_given?
         inside_using = options.delete(:using)
 
         expose(attribute, options) do |object, opts|
-          if is_defined_in_entity?(attribute)
-            send(attribute)
-          else
-            inside_using = polymorphic_using_entity_class(reflection) if reflection&.polymorphic?
+          inside_using = polymorphic_using_entity_class(reflection) if reflection.polymorphic?
 
-            inside_using.custom_represent(object.send(attribute), handle_opts(opts, custom_options))
-          end
+          inside_using.custom_represent(object.send(attribute), handle_opts(opts)) if object.send(attribute)
         end
       else
         expose(attribute, options, &block)
@@ -193,32 +207,37 @@ module CustomGrape
       "#{self.class.entity_namespace}::#{array.join("::")}".constantize
     end
 
-    def handle_opts(opts, custom_options)
-      except_attrs = nil
-
+    def handle_opts(opts)
       attr_path_dup = opts.opts_hash[:attr_path].dup.pop
+      value = CustomGrape::Data.fetch(self.class.name).children_entities[attr_path_dup]
+      except = value[:except] if value[:except]
+      only = value[:only] if value[:only]
 
-      # except取并集
-      if opts.instance_variable_get("@has_except") || custom_options[:except]
-        except_attrs = (opts.except_fields&.[](attr_path_dup) || []) | (custom_options[:except] || [])
-      end
+      merged_except = if opts.instance_variable_get("@has_except") && except
+                        if opts.except_fields[attr_path_dup] == true
+                          nil
+                        else
+                          self.class.merge_except(opts.except_fields[attr_path_dup], except)
+                        end
+                      elsif opts.instance_variable_get("@has_except")
+                        opts.except_fields[attr_path_dup] == true ? nil : opts.except_fields[attr_path_dup]
+                      else
+                        except
+                      end
 
-      # only取交集
-      only_attrs = if opts.instance_variable_get("@has_only") && custom_options[:only]
-                     if opts.only_fields[attr_path_dup] == true
-                       custom_options[:only]
-                     else
-                       opts.only_fields[attr_path_dup] & custom_options[:only]
-                     end
-                   elsif opts.instance_variable_get("@has_only")
-                     opts.only_fields[attr_path_dup] == true ?  nil : opts.only_fields[attr_path_dup]
-                   elsif custom_options[:only]
-                     custom_options[:only]
-                   else
-                     nil
-                   end
+      merged_only = if opts.instance_variable_get("@has_only") && only
+                      if opts.only_fields[attr_path_dup] == true
+                        only
+                      else
+                        self.class.merge_only(opts.only_fields[attr_path_dup], only)
+                      end
+                    elsif opts.instance_variable_get("@has_only")
+                      opts.only_fields[attr_path_dup] == true ?  nil : opts.only_fields[attr_path_dup]
+                    else
+                      only
+                    end
 
-      opts.merge(only: only_attrs, except: except_attrs)
+      opts.merge(only: merged_only, except: merged_except)
     end
   end
 end

@@ -30,4 +30,7 @@ Gem::Specification.new do |spec|
   spec.add_dependency "grape", "~> 1.6.0"
   spec.add_dependency "grape-entity", "~> 0.10.1"
   spec.add_dependency "grape-kaminari", "~> 0.4.1"
+  spec.add_development_dependency "rspec", "~> 3.10.1"
+  spec.add_development_dependency "rspec-rails", "~> 5.0"
+  spec.add_development_dependency "pry"
 end

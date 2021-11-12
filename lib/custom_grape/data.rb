@@ -1,6 +1,8 @@
 module CustomGrape
   class Data
-    attr_accessor :entity_name, :includes, :only, :except, :children_entities
+    extend Util
+
+    attr_accessor :entity_name, :includes, :children_entities
     mattr_accessor :collection, default: {}
     mattr_accessor :includes_cache, default: {}
 
@@ -25,8 +27,6 @@ module CustomGrape
       @entity_name = attrs[:entity_name]
       @includes = {}
       @children_entities = {}
-      @only = {}
-      @except = {}
     end
 
     # 参数
@@ -39,12 +39,13 @@ module CustomGrape
         except: nil
       })
 
+      # TODO only except
       array = includes.values.flatten
       array += children_entities.select { |_, value| value[:includes] }.select do |key, _|
         flag = if options[:only] && options[:except]
                  options[:only].include?(key) && !options[:except].include?(key)
                elsif options[:only]
-                 options[:only].include?(key)
+                 options[:only].include?(key) || options[:only].any? { |element| element.is_a?(Hash) && element.detect { |k, _| key == k } }
                elsif options[:except]
                  !options[:except].include?(key)
                else
@@ -53,10 +54,40 @@ module CustomGrape
 
         flag
       end.map do |key, data|
-        { key => (data[:entity].includes(only: only[key], except: except[key]) || []) }
+        options_except = []
+        options_only = nil
+
+        if options[:except]
+          options[:except].each do |element|
+            if element.is_a?(Hash)
+              array = element.detect { |k, _| key == k }
+              options_except = array[1] and break if array
+            end
+          end
+        end
+
+        if options[:only]
+          options[:only].each do |element|
+            if element.is_a?(Hash)
+              array = element.detect { |k, _| key == k }
+              options_only = array[1] and break if array
+            end
+          end
+        end
+
+        merged_except = self.class.merge_except(options_except, data[:except])
+        merged_only = if options_only && data[:only]
+                        self.class.merge_only(options_only, data[:only])
+                      elsif options_only
+                        options_only
+                      else
+                        data[:only]
+                      end
+
+        { data[:name].to_sym => (data[:entity].includes(only: merged_only, except: merged_except) || []) }
       end
 
-      array += super_entity.includes(options)
+      array
     end
   end
 end
