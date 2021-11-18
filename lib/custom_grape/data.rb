@@ -2,9 +2,8 @@ module CustomGrape
   class Data
     extend Util
 
-    attr_accessor :entity_name, :includes, :children_entities
+    attr_accessor :entity_name, :extra
     mattr_accessor :collection, default: {}
-    mattr_accessor :includes_cache, default: {}
 
     def self.build(entity_name)
       object = new(entity_name: entity_name)
@@ -25,12 +24,10 @@ module CustomGrape
 
     def initialize(attrs = {})
       @entity_name = attrs[:entity_name]
-      @includes = {}
-      @children_entities = {}
+      @extra = {}
     end
 
     # 参数
-    # - cache
     # - only
     # - except
     def fetch_includes(options = {})
@@ -39,9 +36,7 @@ module CustomGrape
         except: nil
       })
 
-      # TODO only except
-      array = includes.values.flatten
-      array += children_entities.select { |_, value| value[:includes] }.select do |key, _|
+      array = extra.select do |key, _|
         flag = if options[:only] && options[:except]
                  options[:only].include?(key) && !options[:except].include?(key)
                elsif options[:only]
@@ -84,7 +79,38 @@ module CustomGrape
                         data[:only]
                       end
 
-        { data[:name].to_sym => (data[:entity].includes(only: merged_only, except: merged_except) || []) }
+
+        arr = []
+
+        if data[:includes].is_a?(Hash)
+          arr += handle_hash_includes(data[:includes], only: merged_only, except: merged_except)
+        elsif data[:includes].is_a?(Array)
+          data[:includes].each do |element|
+            if element.is_a?(Hash)
+              arr += handle_hash_includes(element, only: merged_only, except: merged_except)
+            else
+              arr << element
+            end
+          end
+        else
+          arr << data[:includes]
+        end
+
+        arr
+      end
+
+      array.inject([]) do |merged_array, element|
+        merged_array = self.class.merge_includes(element, merged_array)
+      end
+    end
+
+    def handle_hash_includes(hash, only:, except:)
+      array = []
+
+      hash.map do |key, value|
+        result = value.respond_to?(:includes) ? value.includes(only: only, except: except) : value
+
+        array << (result.blank? ? key : { key => result })
       end
 
       array

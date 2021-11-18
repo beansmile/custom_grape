@@ -8,8 +8,7 @@ module CustomGrape
       data = CustomGrape::Data.build(subclass.name)
 
       if superclass_data = CustomGrape::Data.fetch(name)
-        data.includes = superclass_data.includes.dup
-        data.children_entities = superclass_data.children_entities.dup
+        data.extra = superclass_data.extra.dup
       end
 
       super
@@ -67,10 +66,6 @@ module CustomGrape
 
       begin
         if model = fetch_model
-          if custom_options[:includes]
-            custom_grape_data_object.includes[as_name] = custom_options[:includes].is_a?(Array) ? custom_options[:includes] : [custom_options[:includes]]
-          end
-
           # 关联关系
           if reflection = model.reflect_on_association(attribute)
             options[:documentation][:is_array] = true if reflection.is_a?(ActiveRecord::Reflection::HasManyReflection)
@@ -88,6 +83,7 @@ module CustomGrape
               end
             end
 
+            # 如未传using，则自动生成using
             if !reflection.polymorphic? && !options[:using]
               array = reflection.klass.name.split("::")
               array[-1] = "Simple#{array[-1]}"
@@ -98,25 +94,22 @@ module CustomGrape
             if options[:using]
               # 把using常量化
               options[:using] = options[:using].constantize if options[:using].is_a?(String)
-
-              custom_grape_data_object.children_entities[as_name] = {
-                name: attribute,
+              custom_grape_data_object.extra[as_name] = {
                 entity: options[:using],
-                includes: false,
+                includes: { attribute => options[:using] },
+                only: custom_options[:only],
+                except: custom_options[:except]
+              }
+            elsif reflection.polymorphic?
+              custom_grape_data_object.extra[as_name] = {
+                entity: nil,
+                includes: attribute,
                 only: custom_options[:only],
                 except: custom_options[:except]
               }
             end
 
             options[:documentation][:type] ||= options[:using]
-
-            unless custom_options[:includes]
-              if reflection.polymorphic?
-                custom_grape_data_object.includes[as_name] = [attribute]
-              else
-                custom_grape_data_object.children_entities[as_name][:includes] = true
-              end
-            end
 
           # enum
           elsif model.defined_enums[attribute.to_s]
@@ -126,6 +119,19 @@ module CustomGrape
             unless options[:documentation][:desc]
               enums_desc = model.send(attribute.to_s.pluralize).keys.map { |key| "#{key}为#{model.human_attribute_name("#{attribute}.#{key}")}" }.join("，")
               options[:documentation][:desc] = "#{model.human_attribute_name(attribute)}。#{enums_desc}"
+            end
+          end
+
+          if custom_options[:includes]
+            if custom_grape_data_object.extra[as_name]
+              custom_grape_data_object.extra[as_name][:includes] = custom_options[:includes]
+            else
+              custom_grape_data_object.extra[as_name] = {
+                entity: nil,
+                includes: custom_options[:includes],
+                only: nil,
+                except: nil
+              }
             end
           end
 
@@ -157,7 +163,7 @@ module CustomGrape
         # do nothing
       end
 
-      if custom_grape_data_object.children_entities[as_name] && !block_given?
+      if custom_grape_data_object.extra[as_name] && !block_given?
         inside_using = options.delete(:using)
 
         expose(attribute, options) do |object, opts|
@@ -209,7 +215,7 @@ module CustomGrape
 
     def handle_opts(opts)
       attr_path_dup = opts.opts_hash[:attr_path].dup.pop
-      value = CustomGrape::Data.fetch(self.class.name).children_entities[attr_path_dup]
+      value = CustomGrape::Data.fetch(self.class.name).extra[attr_path_dup]
       except = value[:except] if value[:except]
       only = value[:only] if value[:only]
 

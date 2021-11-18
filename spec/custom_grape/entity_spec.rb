@@ -1,26 +1,24 @@
 require "pry"
 
 RSpec.describe CustomGrape::Entity do
-  let(:variant_data_children_entities_variant_category) do
+  let(:variant_data_extra_variant_category) do
     {
-      name: "variant_category",
       entity: VariantCategoryEntity,
-      includes: true,
+      includes: { :variant_category => VariantCategoryEntity},
       only: nil,
       except: nil
     }
   end
-  let(:product_data_children_entities_variant) do
+  let(:product_data_extra_variant) do
     {
-      name: "variants",
       entity: VariantEntity,
-      includes: true,
-      only: product_data_children_entities_variant_only,
-      except: product_data_children_entities_variant_except
+      includes: { :variants => VariantEntity },
+      only: product_data_extra_variant_only,
+      except: product_data_extra_variant_except
     }
   end
-  let(:product_data_children_entities_variant_only) { nil }
-  let(:product_data_children_entities_variant_except) { nil }
+  let(:product_data_extra_variant_only) { nil }
+  let(:product_data_extra_variant_except) { nil }
 
   before :all do
     variant_category_entity = Object.const_set("VariantCategoryEntity", Class.new(CustomGrape::Entity))
@@ -103,19 +101,17 @@ RSpec.describe CustomGrape::Entity do
       product_category = double({ name: "Product category" })
       product = double({ name: "product", product_category: product_category, variants: [variant] })
 
-      CustomGrape::Data.fetch("ProductEntity").children_entities[:product_category] = {
-        name: :product_category,
+      CustomGrape::Data.fetch("ProductEntity").extra[:product_category] = {
         entity: ProductCategoryEntity,
-        includes: true,
+        includes: { :product_category => ProductCategoryEntity },
         only: nil,
         except: nil
       }
-      CustomGrape::Data.fetch("ProductEntity").children_entities[:variants] = product_data_children_entities_variant
-      CustomGrape::Data.fetch("VariantEntity").children_entities[:variant_category] = variant_data_children_entities_variant_category
-      CustomGrape::Data.fetch("VariantEntity").children_entities[:variant_brand] = {
-        name: :variant_brand,
+      CustomGrape::Data.fetch("ProductEntity").extra[:variants] = product_data_extra_variant
+      CustomGrape::Data.fetch("VariantEntity").extra[:variant_category] = variant_data_extra_variant_category
+      CustomGrape::Data.fetch("VariantEntity").extra[:variant_brand] = {
         entity: VariantBrandEntity,
-        includes: true,
+        includes: { :variant_brand => VariantBrandEntity },
         only: nil,
         except: nil
       }
@@ -170,7 +166,7 @@ RSpec.describe CustomGrape::Entity do
       end
 
       context "when product data children entities variant except variant_category sku" do
-        let(:product_data_children_entities_variant_except) { [variant_category: [:code]] }
+        let(:product_data_extra_variant_except) { [variant_category: [:code]] }
 
         it "get correct result" do
           expect(@json).to eq({
@@ -211,7 +207,7 @@ RSpec.describe CustomGrape::Entity do
       end
 
       context "when product data children entities variant except variant_category sku" do
-        let(:product_data_children_entities_variant_only) { [:sku, variant_category: [:name]] }
+        let(:product_data_extra_variant_only) { [:sku, variant_category: [:name]] }
 
         it "get correct result" do
           expect(@json).to eq({
@@ -227,7 +223,7 @@ RSpec.describe CustomGrape::Entity do
     end
 
     context "when variant except variant_category" do
-      let(:product_data_children_entities_variant_except) { [:variant_category] }
+      let(:product_data_extra_variant_except) { [:variant_category] }
 
       it "get correct result" do
         expect(@json).to eq({
@@ -248,7 +244,7 @@ RSpec.describe CustomGrape::Entity do
     end
 
     context "when variant only variant_category" do
-      let(:product_data_children_entities_variant_only) { [:sku] }
+      let(:product_data_extra_variant_only) { [:sku] }
 
       it "get correct result" do
         expect(@json).to eq({
@@ -268,29 +264,28 @@ RSpec.describe CustomGrape::Entity do
     let(:includes_options) { {} }
 
     before do
-      CustomGrape::Data.fetch("ProductEntity").children_entities[:product_category] = {
-        name: :product_category,
+      CustomGrape::Data.fetch("ProductEntity").extra[:product_category] = {
         entity: ProductCategoryEntity,
-        includes: true,
+        includes: { :product_category => ProductCategoryEntity },
         only: nil,
         except: nil
       }
 
-      CustomGrape::Data.fetch("ProductEntity").children_entities[:variants] = product_data_children_entities_variant
-      CustomGrape::Data.fetch("VariantEntity").children_entities[:variant_category] = variant_data_children_entities_variant_category
+      CustomGrape::Data.fetch("ProductEntity").extra[:variants] = product_data_extra_variant
+      CustomGrape::Data.fetch("VariantEntity").extra[:variant_category] = variant_data_extra_variant_category
 
       @array = ProductEntity.includes(includes_options)
     end
 
     it "get correct result" do
-      expect(@array).to eq([{ product_category: [] }, variants: [{ variant_category: [] }, { variant_brand: [] }]])
+      expect(@array).to eq([{ variants: [:variant_brand, :variant_category] }, :product_category])
     end
 
     context "when includes_options except variants" do
       let(:includes_options) { { except: [:variants] } }
 
       it "get correct result" do
-        expect(@array).to eq([product_category: []])
+        expect(@array).to eq([:product_category])
       end
     end
 
@@ -298,7 +293,7 @@ RSpec.describe CustomGrape::Entity do
       let(:includes_options) { { except: [variants: [:variant_category]] } }
 
       it "get correct result" do
-        expect(@array).to eq([{ product_category: [] }, variants: [{ variant_brand: [] }]])
+        expect(@array).to eq([{ variants: [:variant_brand] }, :product_category])
       end
     end
 
@@ -306,7 +301,7 @@ RSpec.describe CustomGrape::Entity do
       let(:includes_options) { { only: [:variants] } }
 
       it "get correct result" do
-        expect(@array).to eq([variants: [{ variant_category: [] },  { variant_brand: [] }]])
+        expect(@array).to eq([variants: [:variant_brand, :variant_category]])
       end
     end
 
@@ -314,7 +309,7 @@ RSpec.describe CustomGrape::Entity do
       let(:includes_options) { { only: [variants: [:variant_category]] } }
 
       it "get correct result" do
-        expect(@array).to eq([variants: [variant_category: []]])
+        expect(@array).to eq([variants: [:variant_category]])
       end
     end
   end

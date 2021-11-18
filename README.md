@@ -131,16 +131,25 @@ module AppAPI::Entities
 end
 ```
 
-调用 `CustomGrape::Includes.fetch("AppAPI::Entities::User").fetch_includes` 可得到结果 `[:profile]`
+调用 `AppAPI::Entities::User.includes` 可得到结果 `[:profile]`
+
+```
+module AppAPI::Entities
+  class User < ::Entities::Model
+    custom_expose :profile_name, includes: { profile: AppAPI::Entities::SimpleProfile }
+  end
+end
+
+```
+
+调用 `AppAPI::Entities::User.includes` 可得到结果 `[profile: 这里的内容会调用AppAPI::Entities::SimpleProfile.includes方法生成]`
 
 
 ```
 module AppAPI::Entities
   class User < ::Entities::Model
     custom_expose :profile_name, includes: [:profile]
-    custom_expose :friends # 关联关系会自动生成includes，可通过传includes覆盖
+    custom_expose :friends # 关联关系会自动生成includes: { friends: AppAPI::Entities::SimpleFriend }，可通过传includes覆盖
   end
 end
 ```
-
-调用 `AppAPI::Entities::User.includes` 时，如果检测到 `friends` 是关联关系，则会递归调用 `AppAPI::Entities::SimpleFriend.includes` 直到检测不到关联关系为止

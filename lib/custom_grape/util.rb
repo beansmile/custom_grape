@@ -1,9 +1,50 @@
 module CustomGrape
   module Util
-    def merge_except(first_array, second_array)
-      return second_array || [] if first_array.blank?
-      return first_array || [] if second_array.blank?
+    def merge_includes(first_data, second_data)
+      first_array = first_data.is_a?(Array) ? first_data : [first_data]
+      second_array = second_data.is_a?(Array) ? second_data : [second_data]
 
+      (first_array.inject({}) do |hash, element|
+        if element.is_a?(Hash)
+          element.each { |key, value| hash[key] = value }
+        else
+          hash[element] = true
+        end
+
+        hash
+      end).merge(
+        second_array.inject({}) do |hash, element|
+        if element.is_a?(Hash)
+          element.each { |key, value| hash[key] = value }
+        else
+          hash[element] = true
+        end
+
+        hash
+      end) do |key, first_value, second_value|
+        if first_value == true
+          second_value
+        elsif second_value == true
+          first_value
+        else
+          merge_except(first_value, second_value)
+        end
+      end.inject([]) do |array, hash_array|
+        key, value = hash_array
+
+        if value == true
+          array << key
+        else
+          array << { key => value }
+        end
+
+        array
+      end
+    end
+
+    def merge_except(first_data, second_data)
+      first_array = first_data.is_a?(Array) ? first_data : [first_data]
+      second_array = second_data.is_a?(Array) ? second_data : [second_data]
 
       (first_array.inject({}) do |hash, element|
         if element.is_a?(Hash)
