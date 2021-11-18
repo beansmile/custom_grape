@@ -31,7 +31,7 @@ module CustomGrape
     def collection
       return @collection if @collection
 
-      search = end_of_association_chain.accessible_by(current_ability).ransack(declared(params), auth_object: ability_user)
+      search = end_of_association_chain.accessible_by(current_ability).ransack(declared(params, include_missing: false), auth_object: ability_user)
       search.sorts = "#{params[:order].keys.first} #{params[:order].values.first}" if params[:order].present?
 
       @collection = search.result(distinct: true).includes(includes).order(default_order).order("#{resource_class.table_name}.id DESC")
@@ -81,7 +81,7 @@ module CustomGrape
     end
 
     def build_resource
-      @resource = end_of_association_chain.new(declared(params))
+      @resource = end_of_association_chain.new(declared(params, include_missing: false))
     end
 
     def response_error(message)
