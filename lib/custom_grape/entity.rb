@@ -46,13 +46,13 @@ module CustomGrape
 
     def self.custom_expose(*args, &block)
       options = args.last.is_a?(Hash) ? args.pop : {}
-      custom_options = {
+      custom_expose_options = {
         includes: options.delete(:includes),
         except: options.delete(:except),
         only: options.delete(:only)
       }
 
-      raise ArgumentError, "使用only或except参数时不能同时传block参数" if block_given? && (custom_options[:only] || custom_options[:except])
+      raise ArgumentError, "使用only或except参数时不能同时传block参数" if block_given? && (custom_expose_options[:only] || custom_expose_options[:except])
 
       options = merge_options(options)
 
@@ -97,15 +97,15 @@ module CustomGrape
               custom_grape_data_object.extra[as_name] = {
                 entity: options[:using],
                 includes: { attribute => options[:using] },
-                only: custom_options[:only],
-                except: custom_options[:except]
+                only: custom_expose_options[:only],
+                except: custom_expose_options[:except]
               }
             elsif reflection.polymorphic?
               custom_grape_data_object.extra[as_name] = {
                 entity: nil,
                 includes: attribute,
-                only: custom_options[:only],
-                except: custom_options[:except]
+                only: custom_expose_options[:only],
+                except: custom_expose_options[:except]
               }
             end
 
@@ -122,13 +122,13 @@ module CustomGrape
             end
           end
 
-          if custom_options[:includes]
+          if custom_expose_options[:includes]
             if custom_grape_data_object.extra[as_name]
-              custom_grape_data_object.extra[as_name][:includes] = custom_options[:includes]
+              custom_grape_data_object.extra[as_name][:includes] = custom_expose_options[:includes]
             else
               custom_grape_data_object.extra[as_name] = {
                 entity: nil,
-                includes: custom_options[:includes],
+                includes: custom_expose_options[:includes],
                 only: nil,
                 except: nil
               }
@@ -169,7 +169,7 @@ module CustomGrape
         expose(attribute, options) do |object, opts|
           inside_using = polymorphic_using_entity_class(reflection) if reflection.polymorphic?
 
-          inside_using.custom_represent(object.send(attribute), handle_opts(opts)) if object.send(attribute)
+          inside_using.custom_represent(object.send(attribute), custom_options(opts)) if object.send(attribute)
         end
       else
         expose(attribute, options, &block)
