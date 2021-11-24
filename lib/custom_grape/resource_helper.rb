@@ -46,11 +46,11 @@ module CustomGrape
     end
 
     def response_resource
-      custom_present resource, with: route_options[:entity]
+      custom_present resource, only: route_options[:only], except: route_options[:except], with: route_options[:entity]
     end
 
     def response_collection
-      custom_present present_collection, with: route_options[:entity]
+      custom_present present_collection, only: route_options[:only], except: route_options[:except], with: route_options[:entity]
     end
 
     def run_member_action(action, api_options = {}, *data)
@@ -77,7 +77,7 @@ module CustomGrape
     end
 
     def includes
-      @includes ||= route_options[:entity].respond_to?(:includes) ? route_options[:entity].includes : []
+      @includes ||= route_options[:entity].respond_to?(:includes) ? route_options[:entity].includes(only: route_options[:only], except: route_options[:except]) : []
     end
 
     def build_resource
