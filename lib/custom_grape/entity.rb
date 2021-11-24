@@ -213,11 +213,12 @@ module CustomGrape
       "#{self.class.entity_namespace}::#{array.join("::")}".constantize
     end
 
-    def handle_opts(opts)
+    def custom_options(opts)
       attr_path_dup = opts.opts_hash[:attr_path].dup.pop
-      value = CustomGrape::Data.fetch(self.class.name).extra[attr_path_dup]
-      except = value[:except] if value[:except]
-      only = value[:only] if value[:only]
+      if value = CustomGrape::Data.fetch(self.class.name).extra[attr_path_dup]
+        except = value[:except]
+        only = value[:only]
+      end
 
       merged_except = if opts.instance_variable_get("@has_except") && except
                         if opts.except_fields[attr_path_dup] == true
