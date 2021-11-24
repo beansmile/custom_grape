@@ -18,8 +18,8 @@ module CustomGrape
         parent_namespace_options_dup.delete(:entity)
 
         # belongs_to需要用到
-        options[:association_chain] ||= []
-        options[:association_chain] << { class_name: options[:class_name] }
+        parent_namespace_options_dup[:association_chain] ||= []
+        parent_namespace_options_dup[:association_chain] << { class_name: options[:class_name] }
 
         # 继承上级namespace或route_param传递的参数
         options.reverse_merge!(parent_namespace_options_dup)

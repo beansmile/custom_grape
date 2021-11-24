@@ -13,11 +13,11 @@ module CustomGrape
     end
 
     def parent_class
-      @parent_class ||= parent_association_chain[:class_name]
+      @parent_class ||= parent_association_chain[:class_name]&.constantize
     end
 
     def parent
-      @parent ||= parent_class&.find_by!("#{parent_association_chain[:find_by_key]}" => parent_association_chain[:param])
+      @parent ||= parent_class&.find_by!("#{parent_association_chain[:find_by_key]}" => params[parent_association_chain[:param]])
     end
 
     def resource_class
