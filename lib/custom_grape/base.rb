@@ -51,8 +51,8 @@ module CustomGrape
           method_name = paths
 
           route(methods, paths, route_options) do
-            if resource_params
-              run_member_action(method_name, {}, resource_params)
+            if declared(params).present?
+              run_member_action(method_name, {}, declared(params, include_missing: false))
             else
               run_member_action(method_name)
             end
