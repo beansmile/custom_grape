@@ -44,6 +44,16 @@ module CustomGrape
       # TODO cache
     end
 
+    def self.custom_unexpose(*attributes)
+      custom_grape_data_object = CustomGrape::Data.fetch(name)
+
+      attributes.each do |attribute|
+        custom_grape_data_object.extra.delete(attribute)
+      end
+
+      unexpose(attributes)
+    end
+
     def self.custom_expose(*args, &block)
       options = args.last.is_a?(Hash) ? args.pop : {}
       custom_expose_options = {
