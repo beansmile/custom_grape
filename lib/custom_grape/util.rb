@@ -4,6 +4,9 @@ module CustomGrape
       first_array = first_data.is_a?(Array) ? first_data : [first_data]
       second_array = second_data.is_a?(Array) ? second_data : [second_data]
 
+      return second_data.nil? ? nil : second_array if first_data.nil?
+      return first_data.nil? ? nil : first_array if second_data.nil?
+
       (first_array.inject({}) do |hash, element|
         if element.is_a?(Hash)
           element.each { |key, value| hash[key] = value }
@@ -46,6 +49,9 @@ module CustomGrape
       first_array = first_data.is_a?(Array) ? first_data : [first_data]
       second_array = second_data.is_a?(Array) ? second_data : [second_data]
 
+      return second_data.nil? ? nil : second_array if first_data.nil?
+      return first_data.nil? ? nil : first_array if second_data.nil?
+
       (first_array.inject({}) do |hash, element|
         if element.is_a?(Hash)
           element.each { |key, value| hash[key] = value }
@@ -78,7 +84,13 @@ module CustomGrape
       end
     end
 
-    def merge_only(first_array, second_array)
+    def merge_only(first_data, second_data)
+      first_array = first_data.is_a?(Array) ? first_data : [first_data]
+      second_array = second_data.is_a?(Array) ? second_data : [second_data]
+
+      return second_data.nil? ? nil : second_array if first_data.nil?
+      return first_data.nil? ? nil : first_array if second_data.nil?
+
       first_array.inject([]) do |array, element|
         if element.is_a?(Hash)
           element.keys.each do |key|

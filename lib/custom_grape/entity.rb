@@ -3,6 +3,7 @@ module CustomGrape
     extend Util
 
     mattr_accessor :includes_cache, default: {}
+    mattr_accessor :only_cache, default: {}
 
     def self.inherited(subclass)
       data = CustomGrape::Data.build(subclass.name)
@@ -14,15 +15,11 @@ module CustomGrape
       super
     end
 
-    def self.includes(options = {})
-      if use_includes_cache
-        includes_cache[includes_cache_key(options)] ||= CustomGrape::Data.fetch(name)&.fetch_includes(options) || []
-      else
-        CustomGrape::Data.fetch(name)&.fetch_includes(options) || []
-      end
+    def self.use_includes_cache
+      Rails.env.production? || Rails.env.staging?
     end
 
-    def self.use_includes_cache
+    def self.use_only_cache
       Rails.env.production? || Rails.env.staging?
     end
 
@@ -31,9 +28,91 @@ module CustomGrape
       "custom_grape:includes:#{name.underscore}-#{signature}".to_sym
     end
 
+    def self.only_cache_key(options = {})
+      signature = ActiveSupport::Digest.hexdigest(options.sort.to_s)
+      "custom_grape:only:#{name.underscore}-#{signature}".to_sym
+    end
+
+    def self.includes(options = {})
+      data = includes_cache[includes_cache_key(options)] if use_includes_cache
+
+      return data if data
+
+      includes_cache[includes_cache_key(options)] = CustomGrape::Data.fetch(name)&.fetch_includes(options) || []
+    end
+
+    def self.only(options = {})
+      data = only_cache[only_cache_key(options)] if use_only_cache
+
+      return data if data
+
+      only_array = options[:only_array]
+      except_array = options[:except_array]
+      extra = CustomGrape::Data.fetch(name).extra
+      only_cache[only_cache_key(options)] = root_exposures.inject([]) do |array, exposure|
+        key = exposure.key
+        flag = true
+        extra_only_array = nil
+        extra_except_array = nil
+
+        if only_array
+          flag = only_array.any? do |element|
+            if element.is_a?(Hash)
+              element.any? do |k, v|
+                if k.to_s == key.to_s
+                  extra_only_array = v
+
+                  true
+                else
+                  false
+                end
+              end
+            else
+              element.to_s == key.to_s
+            end
+          end
+        end
+
+        if flag && except_array
+          flag = !except_array.any? do |element|
+            if element.is_a?(Hash)
+              element.each do |k, v|
+                if k.to_s == key.to_s
+                  extra_except_array = v
+
+                  break
+                end
+              end
+
+              false
+            else
+              element.to_s == key.to_s
+            end
+          end
+        end
+
+        if flag
+          if data = extra[key]
+            if data[:entity]
+              array << { key => data[:entity].only(only_array: merge_only(data[:only], extra_only_array), except_array: merge_except(data[:except], extra_except_array)) }
+            else
+              array << key
+            end
+          else
+            array << key
+          end
+        end
+
+        array
+      end
+    end
+
     def self.custom_represent(objects, options = {})
       # TODO cache
-      represent(objects, options)
+
+      new_options = options.merge(only: only(only_array: options[:only]))
+
+      represent(objects, new_options)
     end
 
     def self.use_cache
@@ -61,8 +140,6 @@ module CustomGrape
         except: options.delete(:except),
         only: options.delete(:only)
       }
-
-      raise ArgumentError, "使用only或except参数时不能同时传block参数" if block_given? && (custom_expose_options[:only] || custom_expose_options[:except])
 
       options = merge_options(options)
 
@@ -173,13 +250,11 @@ module CustomGrape
         # do nothing
       end
 
-      if custom_grape_data_object.extra[as_name] && !block_given?
-        inside_using = options.delete(:using)
-
+      if reflection&.polymorphic? && !block_given?
         expose(attribute, options) do |object, opts|
-          inside_using = polymorphic_using_entity_class(reflection) if reflection.polymorphic?
+          inside_using = polymorphic_using_entity_class(reflection)
 
-          inside_using.custom_represent(object.send(attribute), custom_options(opts)) if object.send(attribute)
+          inside_using.custom_represent(object.send(attribute), opts) if object.send(attribute)
         end
       else
         expose(attribute, options, &block)
@@ -221,40 +296,6 @@ module CustomGrape
       array[-1] = "Simple#{array[-1]}"
 
       "#{self.class.entity_namespace}::#{array.join("::")}".constantize
-    end
-
-    def custom_options(opts)
-      attr_path_dup = opts.opts_hash[:attr_path].dup.pop
-      if value = CustomGrape::Data.fetch(self.class.name).extra[attr_path_dup]
-        except = value[:except]
-        only = value[:only]
-      end
-
-      merged_except = if opts.instance_variable_get("@has_except") && except
-                        if opts.except_fields[attr_path_dup] == true
-                          nil
-                        else
-                          self.class.merge_except(opts.except_fields[attr_path_dup], except)
-                        end
-                      elsif opts.instance_variable_get("@has_except")
-                        opts.except_fields[attr_path_dup] == true ? nil : opts.except_fields[attr_path_dup]
-                      else
-                        except
-                      end
-
-      merged_only = if opts.instance_variable_get("@has_only") && only
-                      if opts.only_fields[attr_path_dup] == true
-                        only
-                      else
-                        self.class.merge_only(opts.only_fields[attr_path_dup], only)
-                      end
-                    elsif opts.instance_variable_get("@has_only")
-                      opts.only_fields[attr_path_dup] == true ?  nil : opts.only_fields[attr_path_dup]
-                    else
-                      only
-                    end
-
-      opts.merge(only: merged_only, except: merged_except)
     end
   end
 end
