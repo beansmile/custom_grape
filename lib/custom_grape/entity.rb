@@ -93,10 +93,21 @@ module CustomGrape
 
         if flag
           if data = extra[key]
+            merged_only = merge_only(data[:only], extra_only_array)
+            merged_except = merge_except(data[:except], extra_except_array)
+
             if data[:entity]
-              array << { key => data[:entity].only(only_array: merge_only(data[:only], extra_only_array), except_array: merge_except(data[:except], extra_except_array)) }
+              array << { key => data[:entity].only(only_array: merged_only, except_array: merged_except) }
             else
-              array << key
+              if merged_only && merged_except
+                # TODO
+              elsif merged_only
+                array << { key => merged_only }
+              elsif merged_except
+                # TODO
+              else
+                array << key
+              end
             end
           else
             array << key
@@ -254,7 +265,7 @@ module CustomGrape
         expose(attribute, options) do |object, opts|
           inside_using = polymorphic_using_entity_class(reflection)
 
-          inside_using.custom_represent(object.send(attribute), opts) if object.send(attribute)
+          inside_using.custom_represent(object.send(attribute), handle_only_and_except(opts)) if object.send(attribute)
         end
       else
         expose(attribute, options, &block)
@@ -296,6 +307,14 @@ module CustomGrape
       array[-1] = "Simple#{array[-1]}"
 
       "#{self.class.entity_namespace}::#{array.join("::")}".constantize
+    end
+
+    def handle_only_and_except(opts)
+       attr_path_dup = opts.opts_hash[:attr_path].dup.pop
+       only = opts.only_fields[attr_path_dup] == true ?  nil : opts.only_fields[attr_path_dup] if opts.only_fields
+       except = opts.except_fields[attr_path_dup] == true ? nil : opts.except_fields[attr_path_dup] if opts.except_fields
+
+       opts.merge(only: only, except: except)
     end
   end
 end
