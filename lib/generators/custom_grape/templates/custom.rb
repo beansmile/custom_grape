@@ -23,7 +23,7 @@ module CustomGrape
         })) do
           authorize! :read_options, resource_class
 
-          search = end_of_association_chain.accessible_by(current_ability, :read_options).ransack(declared(params), auth_object: ability_user)
+          search = end_of_association_chain.accessible_by(current_ability, :read_options).ransack(declared(params, include_missing: false), auth_object: ability_user)
           search.sorts = "#{params[:order].keys.first} #{params[:order].values.first}" if params[:order].present?
 
           @collection = search.result(distinct: true).includes(includes).order(default_order).order("#{resource_class.table_name}.id DESC")
@@ -59,7 +59,7 @@ module CustomGrape
         change_route_setting_description_if_need(description: "更新#{parent_namespace_options[:class_name].constantize.model_name.human}")
 
         custom_route(:put, "/", route_options) do
-          run_member_action(:update, {}, declared(params))
+          run_member_action(:update, {}, declared(params, include_missing: false))
         end
       end
 
@@ -93,7 +93,10 @@ module CustomGrape
             current_entity = route_options[:entity]
 
             unless key.match?(/\[/)
-              value.reverse_merge!(current_entity.documentation[key.to_sym] || {})
+              documentation_dup = current_entity.documentation[key.to_sym]&.dup || {}
+              documentation_dup[:type] = documentation_dup[:type].to_s if documentation_dup[:type]
+
+              value.reverse_merge!(documentation_dup)
 
               next
             end
@@ -111,11 +114,17 @@ module CustomGrape
 
               break unless current_entity.fetch_model.nested_attributes_options[nested_attribute]
 
-              current_entity = CustomGrape::Includes.fetch(current_entity.name).children_entities[nested_attribute]&.[](:entity)
+              current_entity = CustomGrape::Data.fetch(current_entity.name).extra[nested_attribute]&.[](:entity)
 
               break unless current_entity
 
-              value.reverse_merge!(current_entity.documentation[column.to_sym] || {}) if array.length == index + 1
+
+              if array.length == index + 1
+                documentation_dup = current_entity.documentation[column.to_sym]&.dup || {}
+                documentation_dup[:type] = documentation_dup[:type].to_s if documentation_dup[:type]
+
+                value.reverse_merge!(documentation_dup)
+              end
             end
           end
         end
