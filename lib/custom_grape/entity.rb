@@ -99,12 +99,8 @@ module CustomGrape
             if data[:entity]
               array << { key => data[:entity].only(only_array: merged_only, except_array: merged_except) }
             else
-              if merged_only && merged_except
-                # TODO
-              elsif merged_only
+              if merged_only
                 array << { key => merged_only }
-              elsif merged_except
-                # TODO
               else
                 array << key
               end
@@ -199,6 +195,8 @@ module CustomGrape
                 except: custom_expose_options[:except]
               }
             elsif reflection.polymorphic?
+              raise ArgumentError, "entity不明确，不接受except参数" if custom_expose_options[:except]
+
               custom_grape_data_object.extra[as_name] = {
                 entity: nil,
                 includes: attribute,
@@ -263,9 +261,12 @@ module CustomGrape
 
       if reflection&.polymorphic? && !block_given?
         expose(attribute, options) do |object, opts|
-          inside_using = polymorphic_using_entity_class(reflection)
+          if object.send(attribute)
+            inside_using = polymorphic_using_entity_class(reflection)
+            new_options = opts.for_nesting(attribute)
 
-          inside_using.custom_represent(object.send(attribute), handle_only_and_except(opts)) if object.send(attribute)
+            inside_using.custom_represent(object.send(attribute), new_options)
+          end
         end
       else
         expose(attribute, options, &block)
@@ -307,14 +308,6 @@ module CustomGrape
       array[-1] = "Simple#{array[-1]}"
 
       "#{self.class.entity_namespace}::#{array.join("::")}".constantize
-    end
-
-    def handle_only_and_except(opts)
-       attr_path_dup = opts.opts_hash[:attr_path].dup.pop
-       only = opts.only_fields[attr_path_dup] == true ?  nil : opts.only_fields[attr_path_dup] if opts.only_fields
-       except = opts.except_fields[attr_path_dup] == true ? nil : opts.except_fields[attr_path_dup] if opts.except_fields
-
-       opts.merge(only: only, except: except)
     end
   end
 end
