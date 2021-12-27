@@ -70,24 +70,14 @@ module CustomGrape
           end
         end
 
-        merged_except = self.class.merge_except(options_except, data[:except])
-        merged_only = if options_only && data[:only]
-                        self.class.merge_only(options_only, data[:only])
-                      elsif options_only
-                        options_only
-                      else
-                        data[:only]
-                      end
-
-
         arr = []
 
         if data[:includes].is_a?(Hash)
-          arr += handle_hash_includes(data[:includes], only: merged_only, except: merged_except)
+          arr += handle_hash_includes(data[:includes], only: options_only, except: options_except)
         elsif data[:includes].is_a?(Array)
           data[:includes].each do |element|
             if element.is_a?(Hash)
-              arr += handle_hash_includes(element, only: merged_only, except: merged_except)
+              arr += handle_hash_includes(element, only: options_only, except: options_except)
             else
               arr << element
             end
