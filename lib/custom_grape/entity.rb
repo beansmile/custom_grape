@@ -223,10 +223,10 @@ module CustomGrape
               custom_grape_data_object.extra[as_name][:includes] = custom_expose_options[:includes]
             else
               custom_grape_data_object.extra[as_name] = {
-                entity: nil,
+                entity: options[:using],
                 includes: custom_expose_options[:includes],
-                only: nil,
-                except: nil
+                only: custom_expose_options[:only],
+                except: custom_expose_options[:except]
               }
             end
           end

@@ -37,11 +37,11 @@ module CustomGrape
       })
 
       array = extra.select do |key, _|
-        flag = if options[:only] && options[:except]
+        flag = if options[:only].present? && options[:except].present?
                  options[:only].include?(key) && !options[:except].include?(key)
-               elsif options[:only]
+               elsif options[:only].present?
                  options[:only].include?(key) || options[:only].any? { |element| element.is_a?(Hash) && element.detect { |k, _| key == k } }
-               elsif options[:except]
+               elsif options[:except].present?
                  !options[:except].include?(key)
                else
                  true
@@ -75,13 +75,7 @@ module CustomGrape
         if data[:includes].is_a?(Hash)
           arr += handle_hash_includes(data[:includes], only: options_only, except: options_except)
         elsif data[:includes].is_a?(Array)
-          data[:includes].each do |element|
-            if element.is_a?(Hash)
-              arr += handle_hash_includes(element, only: options_only, except: options_except)
-            else
-              arr << element
-            end
-          end
+          arr += handle_array_includes(data[:includes], only: options_only, except: options_except)
         else
           arr << data[:includes]
         end
@@ -95,15 +89,36 @@ module CustomGrape
     end
 
     def handle_hash_includes(hash, only:, except:)
-      array = []
+      arr = []
 
       hash.map do |key, value|
-        result = value.respond_to?(:includes) ? value.includes(only: only, except: except) : value
+        if value.is_a?(Array)
+          arr += [{ key => handle_array_includes(value, only: only, except: except) }]
+        elsif value.is_a?(Hash)
+          arr += handle_hash_includes(value, only: only, except: except)
+        else
+          result = value.respond_to?(:includes) ? value.includes(only: only, except: except) : value
 
-        array << (result.blank? ? key : { key => result })
+          arr << (result.blank? ? key : { key => result })
+        end
       end
 
-      array
+      arr
+    end
+
+    def handle_array_includes(array, only:, except:)
+      array.inject([]) do |arr, element|
+        if element.is_a?(Array)
+          arr += handle_array_includes(element, only: only, except: except)
+        elsif element.is_a?(Hash)
+          arr += handle_hash_includes(element, only: only, except: except)
+        else
+          result = (element.respond_to?(:includes) ? element.includes(only: only, except: except) : element)
+          arr << result if result.present?
+        end
+
+        arr
+      end
     end
   end
 end
