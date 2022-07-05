@@ -4,7 +4,7 @@ module CustomGrape
     @@entity_includes_cache = {}
 
     def default_order
-      @default_order ||= "id desc"
+      @default_order ||= "#{resource_class.table_name}.id desc"
     end
 
     def end_of_association_chain
@@ -17,7 +17,7 @@ module CustomGrape
       search = end_of_association_chain.accessible_by(current_ability).ransack(ransack_params)
       search.sorts = "#{params[:order].keys.first} #{params[:order].values.first}" if params[:order].present?
 
-      @collection = search.result(distinct: true).includes(includes).order(default_order).order("id DESC")
+      @collection = search.result(distinct: true).includes(includes).order(default_order).order("#{resource_class.table_name}.id DESC")
     end
 
     def resource
@@ -37,7 +37,7 @@ module CustomGrape
     def authorize_and_response_read_options
       authorize! :read_options, auth_resource_class
 
-      @collection = end_of_association_chain.accessible_by(current_ability, :read_options).ransack(ransack_params).result(distinct: true).includes(read_options_includes).order(default_order).order("id DESC")
+      @collection = end_of_association_chain.accessible_by(current_ability, :read_options).ransack(ransack_params).result(distinct: true).includes(read_options_includes).order(default_order).order("#{resource_class.table_name}.id DESC")
 
       options = { with: route_setting_entity }
 
